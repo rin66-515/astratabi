@@ -61,7 +61,7 @@ function App() {
       <aside className="wide-rail" aria-hidden="true"><span>{activePage.number}</span><i /><small>{activePage.label}</small></aside>
       <header className="site-header">
         <a className="brand" href="#home" aria-label="AstraTabi ホーム"><img src={logo} alt="" /><span>AstraTabi</span></a>
-        <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen}>Menu</button>
+        <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label={menuOpen ? 'メニューを閉じる' : 'メニューを開く'}><span /><span /><span /></button>
         <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="メインナビゲーション">
           {navItems.map(([id, label]) => <a className={route.page === id ? 'active' : ''} href={`#${id}`} key={id}>{label}</a>)}
         </nav>
@@ -136,6 +136,8 @@ type AdminDeliveryRecord = {
   status: '已发放' | '准备中' | '已过期' | '已停用'
 }
 
+type AdminDeliveryAction = 'stop' | 'extend' | 'reissue'
+
 const deliveryProjectName = 'ASRAY 勤怠・承認管理システム'
 
 const demoCustomers = ['C001 / 配布先サンプル', 'C002 / 相談中のお客様', 'C003 / 株式会社 星見', 'C004 / 合同会社 月白', 'C005 / 個人利用者', 'C006 / 株式会社 遠景']
@@ -159,6 +161,10 @@ function createDemoRecord(index: number): AdminDeliveryRecord {
 
 const initialAdminRecords = Array.from({ length: 24 }, (_, index) => createDemoRecord(index))
 
+function AdminDeliveryDetails({ record, notice, onAction }: { record: AdminDeliveryRecord, notice: string, onAction: (action: AdminDeliveryAction) => void }) {
+  return <><p className="status">交付详情</p><h3>{record.id}</h3><dl><div><dt>客户</dt><dd>{record.customer}</dd></div><div><dt>案件</dt><dd>{record.project}</dd></div><div><dt>资料包</dt><dd>{record.packageName}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>专属链接</dt><dd>已发放（令牌不在前端展示）</dd></div></dl><div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长有效期</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('stop')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>正式实现时，详情数据由 API 提供，所有操作必须写入审计日志。</small></>
+}
+
 function AdminPreview() {
   const [records, setRecords] = useState(initialAdminRecords)
   const [customer, setCustomer] = useState('')
@@ -171,6 +177,7 @@ function AdminPreview() {
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState(initialAdminRecords[0].id)
   const [detailNotice, setDetailNotice] = useState('')
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const pageSize = 8
 
   const visibleRecords = useMemo(() => records.filter((record) => {
@@ -209,7 +216,7 @@ function AdminPreview() {
     setIssuedLink('/#delivery?token=demo-astratabi-c001')
   }
 
-  function updateSelectedRecord(action: 'stop' | 'extend' | 'reissue') {
+  function updateSelectedRecord(action: AdminDeliveryAction) {
     setRecords((current) => current.map((record) => {
       if (record.id !== selectedRecord.id) return record
       if (action === 'stop') return { ...record, status: '已停用' }
@@ -251,10 +258,12 @@ function AdminPreview() {
             <label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}><option value="all">全部</option><option value="已发放">已发放</option><option value="准备中">准备中</option><option value="已过期">已过期</option><option value="已停用">已停用</option></select></label>
           </div>
           <div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>发放日</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{pagedRecords.map((record) => <tr className={record.id === selectedRecord.id ? 'selected' : ''} key={record.id}><td><strong>{record.id}</strong><span>{record.customer}</span></td><td>{record.issuedAt}</td><td>{record.expiresAt}</td><td>{record.downloadCount}</td><td><span className={`admin-status ${record.status === '已发放' ? 'issued' : record.status === '已停用' ? 'stopped' : 'pending'}`}>{record.status}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setDetailNotice('') }}>详情</button></td></tr>)}</tbody></table></div>
+          <div className="admin-mobile-records">{pagedRecords.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => { setSelectedId(record.id); setDetailNotice(''); setMobileDetailOpen(true) }}><span className={`admin-status ${record.status === '已发放' ? 'issued' : record.status === '已停用' ? 'stopped' : 'pending'}`}>{record.status}</span><strong>{record.customer}</strong><small>{record.id}</small><div><span>有效期：{record.expiresAt}</span><span>下载：{record.downloadCount}</span></div></button>)}</div>
           <div className="admin-pagination"><span>{visibleRecords.length === 0 ? '0 条' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, visibleRecords.length)} / 共 ${visibleRecords.length} 条`}</span><div><button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>上一页</button><span>{page} / {pageCount}</span><button onClick={() => setPage(Math.min(pageCount, page + 1))} disabled={page === pageCount}>下一页</button></div></div>
         </section>
-        <aside className="admin-detail" aria-live="polite"><p className="status">交付详情</p><h3>{selectedRecord.id}</h3><dl><div><dt>客户</dt><dd>{selectedRecord.customer}</dd></div><div><dt>案件</dt><dd>{selectedRecord.project}</dd></div><div><dt>资料包</dt><dd>{selectedRecord.packageName}</dd></div><div><dt>自动水印</dt><dd>{selectedRecord.watermarkText}</dd></div><div><dt>专属链接</dt><dd>已发放（令牌不在前端展示）</dd></div></dl><div className="admin-detail-actions"><button onClick={() => updateSelectedRecord('extend')}>延长有效期</button><button onClick={() => updateSelectedRecord('reissue')}>重新发放</button><button onClick={() => updateSelectedRecord('stop')}>停止链接</button></div>{detailNotice && <p className="admin-detail-notice" role="status">{detailNotice}</p>}<small>正式实现时，详情数据由 API 提供，所有操作必须写入审计日志。</small></aside>
+        <aside className="admin-detail" aria-live="polite"><AdminDeliveryDetails record={selectedRecord} notice={detailNotice} onAction={updateSelectedRecord} /></aside>
       </div>
+      {mobileDetailOpen && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><AdminDeliveryDetails record={selectedRecord} notice={detailNotice} onAction={updateSelectedRecord} /></section></div>}
       <section className="admin-audit"><div><p className="status">下载日志 / 演示</p><h3>受取与下载记录</h3></div><ol><li><time>2026-07-26 10:32 JST</time><span>{selectedRecord.id}</span><em>已生成专属链接</em></li><li><time>—</time><span>下载事件</span><em>后续连接 API 后记录</em></li></ol></section>
       <div className="admin-api"><p className="status">后续后台 API</p><code>{futureAdminEndpoints.join('\n')}</code></div>
     </section>
