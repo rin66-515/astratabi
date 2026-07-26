@@ -1,0 +1,33 @@
+server:
+  port: ${PORTAL_BACKEND_PORT:18082}
+
+spring:
+  application:
+    name: astratabi-delivery-backend
+  datasource:
+    url: ${PORTAL_DB_URL:jdbc:postgresql://127.0.0.1:15432/astratabi}
+    username: ${PORTAL_DB_USERNAME:astratabi}
+    password: ${PORTAL_DB_PASSWORD:astratabi_local_only}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+portal:
+  public-base-url: ${PORTAL_PUBLIC_BASE_URL:http://127.0.0.1:18100}
+  bootstrap:
+    admin-login-id: ${PORTAL_BOOTSTRAP_ADMIN_LOGIN_ID:admin-001}
+    admin-password: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
+  security:
+    token-pepper: ${PORTAL_TOKEN_PEPPER:}
+    cookie-secure: ${PORTAL_COOKIE_SECURE:true}
+    admin-lock-minutes: 15
+    max-failed-logins: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

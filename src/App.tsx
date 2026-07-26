@@ -1,6 +1,25 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
-import { futureAdminEndpoints, getDeliveryByToken, type DeliveryLookup } from './api/client'
+import {
+  createDelivery,
+  extendDelivery,
+  getAdminDeliveries,
+  getAdminEvents,
+  getAdminSession,
+  getAdminSummary,
+  getDeliveryByToken,
+  issueDelivery,
+  login,
+  logout,
+  requestDownloadTicket,
+  revokeDelivery,
+  type AdminDelivery,
+  type ApiError,
+  type DeliveryEvent,
+  type DeliveryLookup,
+  type DeliveryStatus,
+  type DeliverySummaryCounts,
+} from './api/client'
 
 const diary = [
   { date: '2026.07.26', text: '遠回りの夜にも、次の一歩を照らす月がある。', tag: '日々' },
@@ -19,7 +38,7 @@ const navItems = [
 ] as const
 
 type PublicPage = 'home' | (typeof navItems)[number][0]
-type Page = PublicPage | 'delivery' | 'admin-preview'
+type Page = PublicPage | 'delivery' | 'admin'
 type Route = { page: Page, token?: string }
 
 const pageMeta: Record<Page, { number: string, label: string }> = {
@@ -30,14 +49,14 @@ const pageMeta: Record<Page, { number: string, label: string }> = {
   resources: { number: '04', label: '資料・交付' },
   support: { number: '05', label: 'お客様サポート' },
   delivery: { number: 'DL', label: '専用受取' },
-  'admin-preview': { number: 'AD', label: '配布管理' },
+  admin: { number: 'AD', label: '配布管理' },
 }
 
 function routeFromHash(): Route {
   const [routeName, query = ''] = window.location.hash.replace(/^#/, '').split('?')
   const publicPages = ['home', ...navItems.map(([id]) => id)] as string[]
   if (routeName === 'delivery') return { page: 'delivery', token: new URLSearchParams(query).get('token') ?? undefined }
-  if (routeName === 'admin-preview') return { page: 'admin-preview' }
+  if (routeName === 'admin' || routeName === 'admin-preview') return { page: 'admin' }
   return { page: publicPages.includes(routeName) ? routeName as PublicPage : 'home' }
 }
 
@@ -74,7 +93,7 @@ function App() {
       {route.page === 'resources' && <Resources />}
       {route.page === 'support' && <Support />}
       {route.page === 'delivery' && <Delivery initialToken={route.token} />}
-      {route.page === 'admin-preview' && <AdminPreview />}
+      {route.page === 'admin' && <AdminConsole />}
 
       <footer><a className="brand" href="#home"><img src={logo} alt="" /><span>AstraTabi</span></a><p>雲と月をたずさえて、遠くへ。</p><small>© 2026 AstraTabi. Built slowly, with intention.</small></footer>
     </main>
@@ -97,7 +116,7 @@ function Diary() { return <section className="section soft-section"><div classNa
 
 function Japanese() { return <section className="section japanese-section"><div className="section-heading"><p className="eyebrow">03 / IT Japanese corner</p><h2>IT 日本語・交流角</h2><p>独学で N1 にたどり着いたからこそ、言葉で迷う時間にも伴走したい。</p></div><div className="japanese-grid">{japanesePosts.map((post) => <article className="word-card" key={post.word}><span>{post.type}</span><h3>{post.word}</h3><p className="reading">{post.reading}</p><p>{post.meaning}</p></article>)}</div><div className="notice"><strong>投稿は準備中です。</strong><span>公開前に内容を確認する、安心できる交流の場として設計しています。</span></div></section> }
 
-function Resources() { return <section className="section resources-section"><div className="section-heading"><p className="eyebrow">04 / Resources & delivery</p><h2>資料・交付について</h2><p>制作資料は、ご依頼内容を確認したうえで個別にご案内します。公開ページから直接ファイルを配布することはありません。</p></div><div className="resources-grid"><article className="package-card"><p className="status">DOCUMENT PACKAGE</p><h3>実務設計書パッケージ</h3><p>要件定義から基本設計・詳細設計・テスト資料まで、案件単位で整理したドキュメント一式です。</p><span>内容・価格は準備中</span></article><article className="package-card"><p className="status">CUSTOM DELIVERY</p><h3>顧客別の安全な交付</h3><p>お支払い確認後、配布先を記録した専用リンクをご案内します。期限とダウンロード回数を個別に管理します。</p><span>専用リンクで受け取り</span></article></div><ol className="fulfillment-flow"><li><span>01</span><div><strong>ご相談・ご依頼</strong><p>お客様サポートへ、ご希望の資料や用途をお知らせください。</p></div></li><li><span>02</span><div><strong>お支払い確認</strong><p>内容を確認後に、ご案内した方法でお手続きいただきます。</p></div></li><li><span>03</span><div><strong>専用リンクを発行</strong><p>確認完了後、お客様だけが使える受取リンクをお送りします。</p></div></li></ol><div className="delivery-cta"><div><p className="status">CLIENT-ONLY LINK</p><h3>専用受取ページは、交付後に直接ご案内します。</h3><p>リンクをお持ちの方は、その URL を開くだけで受取内容を確認できます。</p></div><a className="button outline" href="#delivery?token=demo-astratabi-c001">受取ページの例を見る</a></div></section> }
+function Resources() { return <section className="section resources-section"><div className="section-heading"><p className="eyebrow">04 / Resources & delivery</p><h2>資料・交付について</h2><p>制作資料は、ご依頼内容を確認したうえで個別にご案内します。公開ページから直接ファイルを配布することはありません。</p></div><div className="resources-grid"><article className="package-card"><p className="status">DOCUMENT PACKAGE</p><h3>実務設計書パッケージ</h3><p>要件定義から基本設計・詳細設計・テスト資料まで、案件単位で整理したドキュメント一式です。</p><span>内容・価格は準備中</span></article><article className="package-card"><p className="status">CUSTOM DELIVERY</p><h3>顧客別の安全な交付</h3><p>お支払い確認後、配布先を記録した専用リンクをご案内します。期限とダウンロード回数を個別に管理します。</p><span>専用リンクで受け取り</span></article></div><ol className="fulfillment-flow"><li><span>01</span><div><strong>ご相談・ご依頼</strong><p>お客様サポートへ、ご希望の資料や用途をお知らせください。</p></div></li><li><span>02</span><div><strong>お支払い確認</strong><p>内容を確認後に、ご案内した方法でお手続きいただきます。</p></div></li><li><span>03</span><div><strong>専用リンクを発行</strong><p>確認完了後、お客様だけが使える受取リンクをお送りします。</p></div></li></ol><div className="delivery-cta"><div><p className="status">CLIENT-ONLY LINK</p><h3>専用受取ページは、交付後に直接ご案内します。</h3><p>リンクをお持ちの方は、その URL を開くだけで受取内容を確認できます。</p></div><a className="button outline" href="#delivery">受取ページを開く</a></div></section> }
 
 function Support() { return <section className="section support-section"><div className="section-heading"><p className="eyebrow">Customer support</p><h2>お客様サポート</h2><p>ご相談・ご依頼・交付物については、WeChat のお客様サポートまでご連絡ください。</p></div><div className="support-panel"><div className="qr-placeholder" aria-label="WeChat QR コードの掲載予定"><span>WECHAT</span><b>+</b><i>QR</i></div><div><p className="status">WECHAT SUPPORT</p><h3>お客様サポート</h3><p>ご依頼の背景や、ご希望の内容をお知らせください。内容を確認後、対応方法をご案内します。</p><dl className="support-details"><div><dt>WeChat ID</dt><dd>公開準備中</dd></div><div><dt>対応内容</dt><dd>ご相談・ご依頼・交付物のお問い合わせ</dd></div><div><dt>ご案内</dt><dd>お支払い確認後、専用の交付リンクを発行します</dd></div></dl><p className="small-note">WeChat ID または QR コードを確定後、ここに掲載します。</p></div></div></section> }
 
@@ -112,7 +131,7 @@ function Delivery({ initialToken }: { initialToken?: string }) {
     setDownloadNotice('')
     if (!initialToken) { setLookup(null); setLoading(false); return }
     setLoading(true)
-    getDeliveryByToken(initialToken).then((result) => { setLookup(result); setLoading(false) })
+    getDeliveryByToken(initialToken).then(setLookup).catch(() => setLookup({ status: 'not-found' })).finally(() => setLoading(false))
   }, [initialToken])
 
   function submitToken(event: FormEvent<HTMLFormElement>) {
@@ -121,9 +140,147 @@ function Delivery({ initialToken }: { initialToken?: string }) {
     if (trimmedToken) window.location.hash = `delivery?token=${encodeURIComponent(trimmedToken)}`
   }
 
-  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>専用受取ページ</h2><p>このページは、交付時にご案内する専用リンクからのみご利用いただく想定です。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">受取トークン</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="専用リンクのトークンを入力" /><button className="button outline" type="submit">受取内容を確認</button></div><small>デモ用トークン：demo-astratabi-c001</small></form></div>{loading && <p className="delivery-state" aria-live="polite">受取情報を確認しています…</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">有効な受取情報を確認できませんでした。ご案内した専用リンクをご確認ください。</p>}{lookup?.status === 'active' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>専用受取情報</span><span>交付準備済み</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">配布先：{lookup.delivery.recipientLabel} ／ 透かし表示を付与した配布コピー</p><dl><div><dt>配布管理番号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有効期限</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>残りダウンロード回数</dt><dd>{lookup.delivery.remainingDownloads} 回</dd></div></dl><p className="file-list">{lookup.delivery.files.map((file) => <span key={file}>▣ {file}</span>)}</p><button className="button primary" onClick={() => setDownloadNotice('静的デモのため、実ファイルはまだ発行しません。正式版ではサーバー側の確認後に短時間のみ有効なダウンロードを開始します。')}>ZIP をダウンロード</button>{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
+  async function startDownload() {
+    if (!initialToken) return
+    try {
+      const ticket = await requestDownloadTicket(initialToken)
+      setDownloadNotice(`ダウンロードを開始しました。残り ${ticket.remainingDownloads} 回です。`)
+      window.location.assign(ticket.downloadUrl)
+    } catch (error) {
+      setDownloadNotice((error as ApiError).message)
+    }
+  }
+
+  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>専用受取ページ</h2><p>このページは、交付時にご案内する専用リンクからのみご利用いただく想定です。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">受取トークン</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="専用リンクのトークンを入力" /><button className="button outline" type="submit">受取内容を確認</button></div><small>専用リンクの URL から自動で受取情報を表示します。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">受取情報を確認しています…</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">有効な受取情報を確認できませんでした。ご案内した専用リンクをご確認ください。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>専用受取情報</span><span>{lookup.status === 'active' ? '交付準備済み' : lookup.status === 'preparing' ? '交付準備中' : '有効期限終了'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">配布先：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>配布管理番号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有効期限</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>残りダウンロード回数</dt><dd>{lookup.delivery.remainingDownloads} 回</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>ZIP をダウンロード</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
 }
 
+const statusLabels: Record<DeliveryStatus, string> = { DRAFT: '草稿', PREPARING: '准备中', ISSUED: '已发放', EXPIRED: '已过期', REVOKED: '已停用', CANCELLED: '已取消' }
+
+function statusClass(status: DeliveryStatus) {
+  return status === 'ISSUED' ? 'issued' : status === 'REVOKED' || status === 'CANCELLED' ? 'stopped' : 'pending'
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })
+}
+
+function AdminConsole() {
+  const [checking, setChecking] = useState(true)
+  const [authenticated, setAuthenticated] = useState(false)
+
+  useEffect(() => {
+    getAdminSession().then(() => setAuthenticated(true)).catch(() => setAuthenticated(false)).finally(() => setChecking(false))
+  }, [])
+
+  if (checking) return <section className="section admin-preview-section"><p className="delivery-state">管理者セッションを確認しています…</p></section>
+  if (!authenticated) return <AdminLogin onLoggedIn={() => setAuthenticated(true)} />
+  return <AdminWorkspace onLoggedOut={() => setAuthenticated(false)} />
+}
+
+function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const [loginId, setLoginId] = useState('admin-001')
+  const [password, setPassword] = useState('')
+  const [notice, setNotice] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSubmitting(true)
+    setNotice('')
+    try {
+      await login(loginId.trim(), password)
+      onLoggedIn()
+    } catch (error) {
+      setNotice((error as ApiError).message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return <section className="section admin-preview-section"><div className="section-heading"><p className="eyebrow">管理者専用</p><h2>交付管理台</h2><p>交付の作成・リンク発行・停止は、単一の管理者会話でのみ実行できます。</p></div><section className="admin-panel admin-issue-panel"><div className="admin-panel-heading"><div><p className="status">ADMIN SIGN IN</p><h3>ログイン</h3></div></div><form className="admin-form" onSubmit={submit}><div className="admin-form-grid"><label className="admin-field">ログインID<input autoComplete="username" value={loginId} onChange={(event) => setLoginId(event.target.value)} /></label><label className="admin-field">パスワード<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label></div><div className="admin-form-actions"><p>管理操作はサーバー側の会話確認、CSRF 保護、監査ログ記録を通して処理します。</p><button className="button primary" disabled={submitting} type="submit">{submitting ? '確認中…' : 'ログイン'}</button></div></form>{notice && <p className="admin-detail-notice" role="alert">{notice}</p>}</section></section>
+}
+
+function LiveDeliveryDetails({ record, events, notice, onAction }: { record: AdminDelivery; events: DeliveryEvent[]; notice: string; onAction: (action: 'extend' | 'reissue' | 'revoke') => void }) {
+  return <><p className="status">交付详情</p><h3>{record.deliveryNo}</h3><dl><div><dt>客户</dt><dd>{record.customerCode} / {record.customerName}</dd></div><div><dt>案件</dt><dd>{record.projectName}</dd></div><div><dt>资料包</dt><dd>{record.packageName}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>下载次数</dt><dd>{record.downloadCount} / {record.downloadLimit}</dd></div></dl><div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长 30 日</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('revoke')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>{record.status === 'PREPARING' ? '资料包和水印生成模块尚未接入；现在的专属链接只显示“准备中”，不会消耗下载次数。' : '所有状态变更和下载事件均由服务端记录。'}</small>{events.length > 0 && <ol className="admin-event-list">{events.slice(0, 4).map((event) => <li key={`${event.occurredAt}-${event.eventType}`}><time>{formatDate(event.occurredAt)}</time><span>{event.eventType}</span></li>)}</ol>}</>
+}
+
+function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
+  const [records, setRecords] = useState<AdminDelivery[]>([])
+  const [summary, setSummary] = useState<DeliverySummaryCounts>({ total: 0, issued: 0, preparing: 0, revoked: 0 })
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [events, setEvents] = useState<DeliveryEvent[]>([])
+  const [customerCode, setCustomerCode] = useState('C001')
+  const [customerName, setCustomerName] = useState('')
+  const [packageName, setPackageName] = useState('設計書パッケージ（ZIP）')
+  const [expiresAt, setExpiresAt] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
+  const [downloadLimit, setDownloadLimit] = useState('3')
+  const [issuedLink, setIssuedLink] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<DeliveryStatus | ''>('')
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalElements, setTotalElements] = useState(0)
+  const [notice, setNotice] = useState('')
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
+
+  const selected = records.find((record) => record.id === selectedId) ?? records[0]
+
+  function refresh() {
+    return Promise.all([getAdminDeliveries({ keyword: search, status: statusFilter || undefined, page, size: 8 }), getAdminSummary()])
+      .then(([deliveryPage, counts]) => {
+        setRecords(deliveryPage.content)
+        setTotalPages(Math.max(1, deliveryPage.totalPages))
+        setTotalElements(deliveryPage.totalElements)
+        setSummary(counts)
+        setSelectedId((current) => current && deliveryPage.content.some((record) => record.id === current) ? current : deliveryPage.content[0]?.id ?? null)
+      })
+      .catch((error: ApiError) => setNotice(error.message))
+  }
+
+  useEffect(() => { void refresh() }, [page, search, statusFilter])
+  useEffect(() => { if (selectedId) getAdminEvents(selectedId).then(setEvents).catch(() => setEvents([])) }, [selectedId])
+
+  async function submitDelivery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setNotice('')
+    try {
+      const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageName, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
+      const issued = await issueDelivery(created.id)
+      setIssuedLink(issued.deliveryLink)
+      setNotice('已创建交付并生成专属链接。资料包生成完成前，客户页面会显示“准备中”。')
+      await refresh()
+      setSelectedId(created.id)
+    } catch (error) {
+      setNotice((error as ApiError).message)
+    }
+  }
+
+  async function updateSelected(action: 'extend' | 'reissue' | 'revoke') {
+    if (!selected) return
+    try {
+      if (action === 'extend') await extendDelivery(selected.id, new Date(Date.now() + 30 * 86400000).toISOString())
+      if (action === 'reissue') {
+        const issued = await issueDelivery(selected.id, true)
+        setIssuedLink(issued.deliveryLink)
+      }
+      if (action === 'revoke') await revokeDelivery(selected.id)
+      setNotice(action === 'extend' ? '已将有效期延长 30 日。' : action === 'reissue' ? '已撤销旧令牌并生成新链接。' : '已停止该专属链接。')
+      await refresh()
+    } catch (error) {
+      setNotice((error as ApiError).message)
+    }
+  }
+
+  async function signOut() {
+    await logout().catch(() => undefined)
+    onLoggedOut()
+  }
+
+  return <section className="section admin-preview-section"><div className="section-heading"><p className="eyebrow">运营管理</p><h2>交付管理台</h2><p>当前数据来自本机 PostgreSQL。资料文件、水印与真实下载将在最后一个文件交付阶段接入。</p><button className="text-button" type="button" onClick={signOut}>退出管理台 →</button></div><div className="admin-summary"><article><span>交付总数</span><strong>{summary.total}</strong><small>全部记录</small></article><article><span>已发放</span><strong>{summary.issued}</strong><small>客户可领取</small></article><article><span>准备中</span><strong>{summary.preparing}</strong><small>等待资料包</small></article><article><span>已停用</span><strong>{summary.revoked}</strong><small>可重新发放</small></article></div><section className="admin-panel admin-issue-panel"><div className="admin-panel-heading"><div><p className="status">新建交付</p><h3>生成客户专属链接</h3></div><span>真实 API</span></div><form className="admin-form" onSubmit={submitDelivery}><div className="admin-form-grid"><label className="admin-field">客户编号<input value={customerCode} onChange={(event) => setCustomerCode(event.target.value)} placeholder="例：C001" /></label><label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label><div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div><label className="admin-field">资料包名称<input value={packageName} onChange={(event) => setPackageName(event.target.value)} /></label><div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后由服务器固定</strong></div><label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label><label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label></div><div className="admin-form-actions"><p>生成链接不代表资料已交付。只有最后的文件与水印阶段完成并由服务器切换为“已发放”后，客户才可下载。</p><button className="button primary" type="submit">生成专属链接</button></div></form>{issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><a href={issuedLink}>{issuedLink}</a></div>}</section><div className="admin-management"><section className="admin-panel admin-list-panel"><div className="admin-panel-heading"><div><p className="status">交付记录</p><h3>客户交付一览</h3></div><span>{totalElements} 条</span></div><div className="admin-filters"><label><span>搜索</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} placeholder="交付编号或客户名称" /></label><label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as DeliveryStatus | ''); setPage(0) }}><option value="">全部</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div><div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{records.map((record) => <tr className={record.id === selected?.id ? 'selected' : ''} key={record.id}><td><strong>{record.deliveryNo}</strong><span>{record.customerCode} / {record.customerName}</span></td><td>{formatDate(record.expiresAt)}</td><td>{record.downloadCount} / {record.downloadLimit}</td><td><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setNotice('') }}>详情</button></td></tr>)}</tbody></table></div><div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => { setSelectedId(record.id); setMobileDetailOpen(true) }}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div><div className="admin-pagination"><span>{totalElements === 0 ? '0 条' : `${page * 8 + 1}–${Math.min((page + 1) * 8, totalElements)} / 共 ${totalElements} 条`}</span><div><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>上一页</button><span>{page + 1} / {totalPages}</span><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>下一页</button></div></div></section>{selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}</div>{mobileDetailOpen && selected && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></section></div>}<section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>交付创建、会话认证、令牌散列、链接撤销、审计记录</span><em>已接通</em></li><li><time>下一阶段</time><span>私有 ZIP / Excel 水印副本和一次性下载票据</span><em>待实现</em></li></ol></section></section>
+}
+
+/* Retired static-only management mock. The active route now uses AdminConsole and real API data. */
+/*
 type AdminDeliveryRecord = {
   id: string
   customer: string
@@ -269,5 +426,6 @@ function AdminPreview() {
     </section>
   )
 }
+*/
 
 export default App

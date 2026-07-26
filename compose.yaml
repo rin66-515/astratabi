@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18.4
+    environment:
+      POSTGRES_DB: astratabi
+      POSTGRES_USER: astratabi
+      POSTGRES_PASSWORD: astratabi_local_only
+    ports:
+      - "127.0.0.1:15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astratabi -d astratabi"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    volumes:
+      - astratabi-postgres-data:/var/lib/postgresql
+
+volumes:
+  astratabi-postgres-data:

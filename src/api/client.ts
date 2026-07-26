@@ -1,46 +1,172 @@
 /**
- * 交付 API 的唯一入口。当前仅返回静态演示数据；正式后端接入时，页面组件无需改动。
- * 访问令牌、有效期、下载回数及文件签名地址必须由服务器端校验和生成。
+ * AstraTabi 后端 API 的唯一入口。
+ * 令牌、下载次数、交付状态和文件路径均以服务端数据为准，前端不会提交或计算这些值。
  */
+
+export type ApiError = Error & { code?: string; status?: number }
+
 export type DeliverySummary = {
   projectName: string
   recipientLabel: string
   deliveryNumber: string
   expiresAt: string
   remainingDownloads: number
-  files: string[]
+  packageName: string
+  message: string
 }
 
 export type DeliveryLookup =
-  | { status: 'active', delivery: DeliverySummary }
+  | { status: 'active'; delivery: DeliverySummary }
+  | { status: 'preparing' | 'expired'; delivery: DeliverySummary }
   | { status: 'not-found' }
 
-const demoDelivery: DeliverySummary = {
-  projectName: 'ASRAY 勤怠・承認管理システム',
-  recipientLabel: 'C001 / 配布先サンプル',
-  deliveryNumber: 'DL-20260726-C001-0001',
-  expiresAt: '2026-08-09 23:59 JST',
-  remainingDownloads: 3,
-  files: ['01_要件定義書_C001.xlsx', '02_基本設計書_F04_C001.xlsx', '03_詳細設計書_F04_C001.xlsx', '配布資料一覧_C001.xlsx'],
+export type AdminSession = { loginId: string; authenticated: boolean }
+
+export type DeliveryStatus = 'DRAFT' | 'PREPARING' | 'ISSUED' | 'EXPIRED' | 'REVOKED' | 'CANCELLED'
+
+export type AdminDelivery = {
+  id: string
+  deliveryNo: string
+  customerCode: string
+  customerName: string
+  projectName: string
+  packageName: string
+  status: DeliveryStatus
+  expiresAt: string
+  downloadLimit: number
+  downloadCount: number
+  remainingDownloads: number
+  watermarkText: string
+  packageReady: boolean
+}
+
+export type Page<T> = {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
+export type DeliverySummaryCounts = { total: number; issued: number; preparing: number; revoked: number }
+export type DeliveryEvent = { occurredAt: string; eventType: string; clientIp: string | null }
+
+type Csrf = { headerName: string; token: string }
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, { credentials: 'include', ...init })
+  if (!response.ok) {
+    let detail: { code?: string; message?: string } = {}
+    try { detail = await response.json() } catch { /* response intentionally has no body */ }
+    const error = new Error(detail.message ?? '通信に失敗しました。') as ApiError
+    error.code = detail.code
+    error.status = response.status
+    throw error
+  }
+  if (response.status === 204) return undefined as T
+  return response.json() as Promise<T>
+}
+
+async function csrf(): Promise<Csrf> {
+  return request<Csrf>('/api/v1/admin/auth/csrf')
+}
+
+async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = await csrf()
+  const headers = new Headers(init.headers)
+  headers.set(token.headerName, token.token)
+  return request<T>(path, { ...init, headers })
+}
+
+function toDeliverySummary(payload: PublicDeliveryPayload): DeliverySummary {
+  return {
+    projectName: payload.projectName,
+    recipientLabel: payload.recipientLabel,
+    deliveryNumber: payload.deliveryNumber,
+    expiresAt: new Date(payload.expiresAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', dateStyle: 'medium', timeStyle: 'short' }) + ' JST',
+    remainingDownloads: payload.remainingDownloads,
+    packageName: payload.packageName,
+    message: payload.message,
+  }
+}
+
+type PublicDeliveryPayload = {
+  state: 'ACTIVE' | 'PREPARING' | 'EXPIRED'
+  projectName: string
+  recipientLabel: string
+  deliveryNumber: string
+  expiresAt: string
+  remainingDownloads: number
+  packageName: string
+  message: string
 }
 
 export async function getDeliveryByToken(token: string): Promise<DeliveryLookup> {
-  // Future: GET /api/v1/deliveries/{token}
-  // The backend must return only data authorized for this opaque, customer-specific token.
-  return token === 'demo-astratabi-c001'
-    ? { status: 'active', delivery: demoDelivery }
-    : { status: 'not-found' }
+  try {
+    const payload = await request<PublicDeliveryPayload>(`/api/v1/deliveries/${encodeURIComponent(token)}`)
+    const delivery = toDeliverySummary(payload)
+    if (payload.state === 'ACTIVE') return { status: 'active', delivery }
+    if (payload.state === 'PREPARING') return { status: 'preparing', delivery }
+    return { status: 'expired', delivery }
+  } catch (error) {
+    if ((error as ApiError).status === 404) return { status: 'not-found' }
+    throw error
+  }
 }
 
-export const futurePublicEndpoints = [
-  'GET /api/v1/public/packages',
-  'GET /api/v1/deliveries/{token}',
-  'POST /api/v1/deliveries/{token}/download-tickets',
-]
+export function requestDownloadTicket(token: string) {
+  return request<{ downloadUrl: string; remainingDownloads: number }>(`/api/v1/deliveries/${encodeURIComponent(token)}/download-tickets`, { method: 'POST' })
+}
 
-export const futureAdminEndpoints = [
-  'POST /api/v1/admin/deliveries',
-  'POST /api/v1/admin/deliveries/{id}/packages',
-  'POST /api/v1/admin/deliveries/{id}/publish',
-  'GET /api/v1/admin/deliveries/{id}/download-events',
-]
+export function getAdminSession() {
+  return request<AdminSession>('/api/v1/admin/auth/session')
+}
+
+export function login(loginId: string, password: string) {
+  return adminRequest<AdminSession>('/api/v1/admin/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ loginId, password }),
+  })
+}
+
+export function logout() {
+  return adminRequest<void>('/api/v1/admin/auth/logout', { method: 'POST' })
+}
+
+export function getAdminDeliveries(params: { keyword?: string; status?: DeliveryStatus; page?: number; size?: number } = {}) {
+  const query = new URLSearchParams()
+  if (params.keyword) query.set('keyword', params.keyword)
+  if (params.status) query.set('status', params.status)
+  query.set('page', String(params.page ?? 0))
+  query.set('size', String(params.size ?? 8))
+  return request<Page<AdminDelivery>>(`/api/v1/admin/deliveries?${query}`)
+}
+
+export function getAdminSummary() {
+  return request<DeliverySummaryCounts>('/api/v1/admin/deliveries/summary')
+}
+
+export function getAdminEvents(id: string) {
+  return request<DeliveryEvent[]>(`/api/v1/admin/deliveries/${id}/events`)
+}
+
+export function createDelivery(payload: { customerCode: string; customerName: string; packageName: string; expiresAt: string; downloadLimit: number }) {
+  return adminRequest<AdminDelivery>('/api/v1/admin/deliveries', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  })
+}
+
+export function issueDelivery(id: string, reissue = false) {
+  return adminRequest<{ delivery: AdminDelivery; deliveryLink: string; notice: string }>(`/api/v1/admin/deliveries/${id}/${reissue ? 'reissue' : 'issue'}`, { method: 'POST' })
+}
+
+export function extendDelivery(id: string, expiresAt: string) {
+  return adminRequest<AdminDelivery>(`/api/v1/admin/deliveries/${id}/extend`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresAt }),
+  })
+}
+
+export function revokeDelivery(id: string) {
+  return adminRequest<AdminDelivery>(`/api/v1/admin/deliveries/${id}/revoke`, { method: 'POST' })
+}

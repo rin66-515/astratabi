@@ -262,6 +262,8 @@ h1, h2, h3, p { margin-top: 0; }
 .admin-detail-actions button { padding: 9px 6px; }
 .admin-detail-notice { margin: 16px 0; padding: 11px; color: #cce4d0; background: rgba(69, 122, 85, .34); font-size: 11px; line-height: 1.7; }
 .admin-detail > small { display: block; color: #aab5cc; font-size: 10px; line-height: 1.8; }
+.admin-event-list { display: grid; gap: 7px; margin: 16px 0 0; padding: 0; list-style: none; }
+.admin-event-list li { display: flex; justify-content: space-between; gap: 12px; color: #b7c1d7; font: 10px 'DM Mono', monospace; }
 .mobile-detail-layer { display: none; }
 .admin-audit { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; max-width: 1180px; margin: 22px auto 0; padding: 28px; }
 .admin-audit ol { flex: 1; max-width: 620px; margin: 0; padding: 0; list-style: none; }
