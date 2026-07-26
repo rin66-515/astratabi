@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
 import { futureAdminEndpoints, getDeliveryByToken, type DeliveryLookup } from './api/client'
 
@@ -124,6 +124,141 @@ function Delivery({ initialToken }: { initialToken?: string }) {
   return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>専用受取ページ</h2><p>このページは、交付時にご案内する専用リンクからのみご利用いただく想定です。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">受取トークン</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="専用リンクのトークンを入力" /><button className="button outline" type="submit">受取内容を確認</button></div><small>デモ用トークン：demo-astratabi-c001</small></form></div>{loading && <p className="delivery-state" aria-live="polite">受取情報を確認しています…</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">有効な受取情報を確認できませんでした。ご案内した専用リンクをご確認ください。</p>}{lookup?.status === 'active' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>専用受取情報</span><span>交付準備済み</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">配布先：{lookup.delivery.recipientLabel} ／ 透かし表示を付与した配布コピー</p><dl><div><dt>配布管理番号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有効期限</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>残りダウンロード回数</dt><dd>{lookup.delivery.remainingDownloads} 回</dd></div></dl><p className="file-list">{lookup.delivery.files.map((file) => <span key={file}>▣ {file}</span>)}</p><button className="button primary" onClick={() => setDownloadNotice('静的デモのため、実ファイルはまだ発行しません。正式版ではサーバー側の確認後に短時間のみ有効なダウンロードを開始します。')}>ZIP をダウンロード</button>{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
 }
 
-function AdminPreview() { return <section className="section admin-preview-section"><div className="section-heading"><p className="eyebrow">Private operator preview</p><h2>配布管理フロー</h2><p>公開ナビゲーションには表示しない、運用確認用のモックです。正式版では管理者認証を必須にします。</p></div><div className="admin-flow"><article><span>01</span><h3>入金確認</h3><p>注文情報と支払い状況を確認します。</p></article><article><span>02</span><h3>配布コピー作成</h3><p>顧客・管理番号入りの ZIP を登録します。</p></article><article><span>03</span><h3>専用リンク発行</h3><p>期限と回数を設定し、受取 URL を発行します。</p></article></div><div className="admin-api"><p className="status">FUTURE ADMIN API</p><code>{futureAdminEndpoints.join('\n')}</code></div></section> }
+type AdminDeliveryRecord = {
+  id: string
+  customer: string
+  project: string
+  issuedAt: string
+  expiresAt: string
+  downloadCount: string
+  packageName: string
+  watermarkText: string
+  status: '已发放' | '准备中' | '已过期' | '已停用'
+}
+
+const deliveryProjectName = 'ASRAY 勤怠・承認管理システム'
+
+const demoCustomers = ['C001 / 配布先サンプル', 'C002 / 相談中のお客様', 'C003 / 株式会社 星見', 'C004 / 合同会社 月白', 'C005 / 個人利用者', 'C006 / 株式会社 遠景']
+const demoPackages = ['設計書パッケージ（ZIP）', 'テスト資料パッケージ（ZIP）', '個別見積・特別資料（ZIP）']
+
+function createWatermark(customer: string, deliveryNumber: string) {
+  const customerCode = customer.slice(0, 4)
+  return `ASRAY / ${customerCode} / ${deliveryNumber}`
+}
+
+function createDemoRecord(index: number): AdminDeliveryRecord {
+  const customer = demoCustomers[index % demoCustomers.length]
+  const sequence = String(index + 1).padStart(4, '0')
+  const id = `DL-202607${String(26 - Math.floor(index / 3)).padStart(2, '0')}-${customer.slice(0, 4)}-${sequence}`
+  const status = index % 9 === 7 ? '已停用' : index % 7 === 6 ? '已过期' : index % 5 === 4 ? '准备中' : '已发放'
+  const expiresAt = status === '准备中' ? '—' : index % 6 === 0 ? '2026-07-29' : `2026-08-${String(4 + (index % 22)).padStart(2, '0')}`
+  const limit = index % 3 === 0 ? 1 : index % 3 === 1 ? 3 : 5
+  const used = status === '准备中' ? '—' : `${Math.min(index % (limit + 1), limit)} / ${limit}`
+  return { id, customer, project: deliveryProjectName, issuedAt: `2026-07-${String(26 - Math.floor(index / 3)).padStart(2, '0')}`, expiresAt, downloadCount: used, packageName: demoPackages[index % demoPackages.length], watermarkText: createWatermark(customer, id), status }
+}
+
+const initialAdminRecords = Array.from({ length: 24 }, (_, index) => createDemoRecord(index))
+
+function AdminPreview() {
+  const [records, setRecords] = useState(initialAdminRecords)
+  const [customer, setCustomer] = useState('')
+  const [packageName, setPackageName] = useState('設計書パッケージ（ZIP）')
+  const [expiresAt, setExpiresAt] = useState('2026-08-09')
+  const [downloadLimit, setDownloadLimit] = useState('3')
+  const [issuedLink, setIssuedLink] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [selectedId, setSelectedId] = useState(initialAdminRecords[0].id)
+  const [detailNotice, setDetailNotice] = useState('')
+  const pageSize = 8
+
+  const visibleRecords = useMemo(() => records.filter((record) => {
+    const matchedStatus = statusFilter === 'all' || record.status === statusFilter
+    const keyword = search.trim().toLowerCase()
+    const matchedSearch = !keyword || [record.id, record.customer, record.project, record.status].join(' ').toLowerCase().includes(keyword)
+    return matchedStatus && matchedSearch
+  }), [records, search, statusFilter])
+  const pageCount = Math.max(1, Math.ceil(visibleRecords.length / pageSize))
+  const pagedRecords = visibleRecords.slice((page - 1) * pageSize, page * pageSize)
+  const selectedRecord = records.find((record) => record.id === selectedId) ?? records[0]
+  const activeCount = records.filter((record) => record.status === '已发放').length
+  const expiringCount = records.filter((record) => record.status === '已发放' && record.expiresAt === '2026-07-29').length
+  const stoppedCount = records.filter((record) => record.status === '已停用').length
+
+  useEffect(() => { if (page > pageCount) setPage(pageCount) }, [page, pageCount])
+
+  function issueDelivery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nextNumber = String(records.length + 1).padStart(4, '0')
+    const record: AdminDeliveryRecord = {
+      id: `DL-20260726-DEMO-${nextNumber}`,
+      customer: customer.trim() || 'お客様サンプル',
+      project: deliveryProjectName,
+      issuedAt: '2026-07-26',
+      expiresAt,
+      downloadCount: `0 / ${downloadLimit || '3'}`,
+      packageName,
+      watermarkText: '',
+      status: '已发放',
+    }
+    record.watermarkText = createWatermark(record.customer, record.id)
+    setRecords([record, ...records])
+    setSelectedId(record.id)
+    setPage(1)
+    setIssuedLink('/#delivery?token=demo-astratabi-c001')
+  }
+
+  function updateSelectedRecord(action: 'stop' | 'extend' | 'reissue') {
+    setRecords((current) => current.map((record) => {
+      if (record.id !== selectedRecord.id) return record
+      if (action === 'stop') return { ...record, status: '已停用' }
+      if (action === 'extend') return { ...record, expiresAt: '2026-08-31' }
+      return { ...record, status: '已发放', expiresAt: '2026-08-09', downloadCount: '0 / 3' }
+    }))
+    setDetailNotice(action === 'stop' ? '静态演示：已将该交付变更为停用状态。' : action === 'extend' ? '静态演示：已将有效期延长至 2026-08-31。' : '静态演示：已初始化下载次数，并设为重新发放状态。')
+  }
+
+  return (
+    <section className="section admin-preview-section">
+      <div className="section-heading"><p className="eyebrow">运营管理预览</p><h2>交付管理台</h2><p>用于确认业务流程的静态演示。所有输入与记录仅在当前浏览器显示中有效，不会保存或实际发送。</p></div>
+      <div className="admin-summary">
+        <article><span>交付总数</span><strong>{records.length}</strong><small>全部记录</small></article>
+        <article><span>发放中</span><strong>{activeCount}</strong><small>客户可领取</small></article>
+        <article><span>即将到期</span><strong>{expiringCount}</strong><small>3 日内（演示）</small></article>
+        <article><span>已停用</span><strong>{stoppedCount}</strong><small>可重新发放</small></article>
+      </div>
+      <section className="admin-panel admin-issue-panel">
+        <div className="admin-panel-heading"><div><p className="status">新建交付</p><h3>生成客户专属链接</h3></div><span>演示</span></div>
+        <form className="admin-form" onSubmit={issueDelivery}>
+          <div className="admin-form-grid">
+            <label className="admin-field">客户 / 交付对象<input value={customer} onChange={(event) => setCustomer(event.target.value)} placeholder="例：C003 / 株式会社サンプル" /></label>
+            <div className="admin-field admin-fixed-field"><span>项目名称</span><strong>{deliveryProjectName}</strong></div>
+            <label className="admin-field">资料包<select value={packageName} onChange={(event) => setPackageName(event.target.value)}>{demoPackages.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后自动创建</strong></div>
+            <label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
+            <label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label>
+          </div>
+          <div className="admin-form-actions"><p>正式实现时，需在确认收款、上传 ZIP、服务端生成交付编号与水印、生成受取令牌后，才允许发放。</p><button className="button primary" type="submit">生成专属链接</button></div>
+        </form>
+        {issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成演示链接</strong><span>静态版会打开固定的客户受取页面。</span></p><a href={issuedLink}>{issuedLink}</a><small>自动水印：{selectedRecord.watermarkText} ／ 下载上限：{downloadLimit || '3'} 次</small></div>}
+      </section>
+      <div className="admin-management">
+        <section className="admin-panel admin-list-panel">
+          <div className="admin-panel-heading"><div><p className="status">交付记录</p><h3>客户交付一览</h3></div><span>{visibleRecords.length} 条</span></div>
+          <div className="admin-filters">
+            <label><span>搜索</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="交付编号或客户名称" /></label>
+            <label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}><option value="all">全部</option><option value="已发放">已发放</option><option value="准备中">准备中</option><option value="已过期">已过期</option><option value="已停用">已停用</option></select></label>
+          </div>
+          <div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>发放日</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{pagedRecords.map((record) => <tr className={record.id === selectedRecord.id ? 'selected' : ''} key={record.id}><td><strong>{record.id}</strong><span>{record.customer}</span></td><td>{record.issuedAt}</td><td>{record.expiresAt}</td><td>{record.downloadCount}</td><td><span className={`admin-status ${record.status === '已发放' ? 'issued' : record.status === '已停用' ? 'stopped' : 'pending'}`}>{record.status}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setDetailNotice('') }}>详情</button></td></tr>)}</tbody></table></div>
+          <div className="admin-pagination"><span>{visibleRecords.length === 0 ? '0 条' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, visibleRecords.length)} / 共 ${visibleRecords.length} 条`}</span><div><button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>上一页</button><span>{page} / {pageCount}</span><button onClick={() => setPage(Math.min(pageCount, page + 1))} disabled={page === pageCount}>下一页</button></div></div>
+        </section>
+        <aside className="admin-detail" aria-live="polite"><p className="status">交付详情</p><h3>{selectedRecord.id}</h3><dl><div><dt>客户</dt><dd>{selectedRecord.customer}</dd></div><div><dt>案件</dt><dd>{selectedRecord.project}</dd></div><div><dt>资料包</dt><dd>{selectedRecord.packageName}</dd></div><div><dt>自动水印</dt><dd>{selectedRecord.watermarkText}</dd></div><div><dt>专属链接</dt><dd>已发放（令牌不在前端展示）</dd></div></dl><div className="admin-detail-actions"><button onClick={() => updateSelectedRecord('extend')}>延长有效期</button><button onClick={() => updateSelectedRecord('reissue')}>重新发放</button><button onClick={() => updateSelectedRecord('stop')}>停止链接</button></div>{detailNotice && <p className="admin-detail-notice" role="status">{detailNotice}</p>}<small>正式实现时，详情数据由 API 提供，所有操作必须写入审计日志。</small></aside>
+      </div>
+      <section className="admin-audit"><div><p className="status">下载日志 / 演示</p><h3>受取与下载记录</h3></div><ol><li><time>2026-07-26 10:32 JST</time><span>{selectedRecord.id}</span><em>已生成专属链接</em></li><li><time>—</time><span>下载事件</span><em>后续连接 API 后记录</em></li></ol></section>
+      <div className="admin-api"><p className="status">后续后台 API</p><code>{futureAdminEndpoints.join('\n')}</code></div>
+    </section>
+  )
+}
 
 export default App
