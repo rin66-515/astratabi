@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
+import { selectSignMessage } from './lib/selectSignMessage'
 import {
   createDelivery,
   extendDelivery,
@@ -34,36 +35,50 @@ const japanesePosts = [
 ]
 
 const navItems = [
-  ['story', '物語'], ['diary', '一句日記'], ['japanese', 'IT 日本語'], ['resources', '資料・交付'], ['support', 'お客様サポート'],
+  ['tavern', '酒桌'], ['library', '藏书楼'], ['workshop', '百工坊'], ['pavilion', '长亭'], ['road', '云月路'], ['courtyard', '后院'],
 ] as const
 
-type PublicPage = 'home' | (typeof navItems)[number][0]
+type PublicPage = 'home' | 'not-found' | (typeof navItems)[number][0]
 type Page = PublicPage | 'delivery' | 'admin'
 type Route = { page: Page, token?: string }
 
 const pageMeta: Record<Page, { number: string, label: string }> = {
-  home: { number: '00', label: 'AstraTabi' },
-  story: { number: '01', label: '物語' },
-  diary: { number: '02', label: '一句日記' },
-  japanese: { number: '03', label: 'IT 日本語' },
-  resources: { number: '04', label: '資料・交付' },
-  support: { number: '05', label: 'お客様サポート' },
-  delivery: { number: 'DL', label: '専用受取' },
+  home: { number: '00', label: '云月小铺' },
+  tavern: { number: '01', label: '酒桌' },
+  library: { number: '02', label: '藏书楼' },
+  workshop: { number: '03', label: '百工坊' },
+  pavilion: { number: '04', label: '长亭' },
+  road: { number: '05', label: '云月路' },
+  courtyard: { number: '06', label: '后院' },
+  'not-found': { number: '？', label: '未行之路' },
+  delivery: { number: 'DL', label: '专属交付' },
   admin: { number: 'AD', label: '配布管理' },
 }
 
 function routeFromHash(): Route {
   const [routeName, query = ''] = window.location.hash.replace(/^#/, '').split('?')
-  const publicPages = ['home', ...navItems.map(([id]) => id)] as string[]
+  const publicPages = navItems.map(([id]) => id) as string[]
   if (routeName === 'delivery') return { page: 'delivery', token: new URLSearchParams(query).get('token') ?? undefined }
   if (routeName === 'admin' || routeName === 'admin-preview') return { page: 'admin' }
-  return { page: publicPages.includes(routeName) ? routeName as PublicPage : 'home' }
+  if (!routeName || routeName === 'home' || routeName === 'shop') return { page: 'home' }
+  return { page: publicPages.includes(routeName) ? routeName as PublicPage : 'not-found' }
+}
+
+function hasEnteredShop() {
+  try {
+    return window.sessionStorage.getItem('yunyue-shop-entered') === 'true'
+  } catch {
+    return false
+  }
 }
 
 function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [route, setRoute] = useState<Route>(routeFromHash)
+  const [entered, setEntered] = useState(hasEnteredShop)
+  const [opening, setOpening] = useState(false)
   const activePage = pageMeta[route.page]
+  const isPrivateRoute = route.page === 'admin' || route.page === 'delivery'
 
   useEffect(() => {
     const syncRoute = () => {
@@ -75,29 +90,203 @@ function App() {
     return () => window.removeEventListener('hashchange', syncRoute)
   }, [])
 
+  function enterShop() {
+    setOpening(true)
+    window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem('yunyue-shop-entered', 'true')
+      } catch {
+        // Storage is optional; entering the shop must still work.
+      }
+      setEntered(true)
+      setOpening(false)
+    }, 900)
+  }
+
+  function leaveShop() {
+    try {
+      window.sessionStorage.removeItem('yunyue-shop-entered')
+    } catch {
+      // Storage is optional; the local state still returns to the entrance.
+    }
+    setMenuOpen(false)
+    setOpening(false)
+    if (window.location.hash !== '#home') {
+      window.location.hash = 'home'
+    }
+    setEntered(false)
+  }
+
+  if (!isPrivateRoute && !entered) {
+    return <ShopEntrance opening={opening} onEnter={enterShop} />
+  }
+
   return (
-    <main>
+    <main className={route.page === 'admin' ? 'admin-shell' : 'shop-shell'}>
       <aside className="wide-rail" aria-hidden="true"><span>{activePage.number}</span><i /><small>{activePage.label}</small></aside>
-      <header className="site-header">
-        <a className="brand" href="#home" aria-label="AstraTabi ホーム"><img src={logo} alt="" /><span>AstraTabi</span></a>
+      <header className={`site-header${route.page === 'admin' ? ' admin-site-header' : ''}`}>
+        <a className="brand" href="#home" aria-label="云月小铺"><img src={logo} alt="" /><span>云月小铺</span></a>
         <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label={menuOpen ? 'メニューを閉じる' : 'メニューを開く'}><span /><span /><span /></button>
-        <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="メインナビゲーション">
-          {navItems.map(([id, label]) => <a className={route.page === id ? 'active' : ''} href={`#${id}`} key={id}>{label}</a>)}
+        <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="小铺导航">
+          {route.page !== 'admin' && navItems.map(([id, label]) => <a className={route.page === id ? 'active' : ''} href={`#${id}`} key={id}>{label}</a>)}
+          {!isPrivateRoute && <button className="leave-shop" type="button" onClick={leaveShop}>掩门离去</button>}
         </nav>
       </header>
 
-      {route.page === 'home' && <Home />}
-      {route.page === 'story' && <Story />}
-      {route.page === 'diary' && <Diary />}
-      {route.page === 'japanese' && <Japanese />}
-      {route.page === 'resources' && <Resources />}
-      {route.page === 'support' && <Support />}
+      {route.page === 'home' && <ShopHome />}
+      {route.page === 'tavern' && <Tavern />}
+      {route.page === 'library' && <Library />}
+      {route.page === 'workshop' && <Workshop />}
+      {route.page === 'pavilion' && <Pavilion />}
+      {route.page === 'road' && <CloudRoad />}
+      {route.page === 'courtyard' && <Courtyard />}
+      {route.page === 'not-found' && <ShopNotFound />}
       {route.page === 'delivery' && <Delivery initialToken={route.token} />}
       {route.page === 'admin' && <AdminConsole />}
 
-      <footer><a className="brand" href="#home"><img src={logo} alt="" /><span>AstraTabi</span></a><p>雲と月をたずさえて、遠くへ。</p><small>© 2026 AstraTabi. Built slowly, with intention.</small></footer>
+      {route.page !== 'admin' && <footer><a className="brand" href="#home"><img src={logo} alt="" /><span>云月小铺</span></a><p>云聚云散，月有圆缺。</p><small>店小二还在赶路，灯会一直留着。</small></footer>}
     </main>
   )
+}
+
+const shopRooms = [
+  { id: 'tavern', name: '酒桌', note: '日常、思考与一路见闻', mark: '一盏酒' },
+  { id: 'library', name: '藏书楼', note: '技术、日本 IT 与读书札记', mark: '一卷书' },
+  { id: 'workshop', name: '百工坊', note: '项目、设计书与做过的作品', mark: '一件物' },
+  { id: 'pavilion', name: '长亭', note: '音乐、摄影、旅行与远方', mark: '一程路' },
+  { id: 'road', name: '云月路', note: '一部慢慢写下去的故事', mark: '一页纸' },
+  { id: 'courtyard', name: '后院', note: '工具、源码与留下的痕迹', mark: '一扇门' },
+] as const
+
+function ShopEntrance({ opening, onEnter }: { opening: boolean; onEnter: () => void }) {
+  return <main className={`shop-entrance${opening ? ' opening' : ''}`}>
+    <div className="entrance-mountains mountain-far" aria-hidden="true" />
+    <div className="entrance-mountains mountain-near" aria-hidden="true" />
+    <div className="entrance-eaves" aria-hidden="true" />
+    <div className="entrance-lantern" aria-hidden="true"><i /></div>
+    <div className="entrance-spear" aria-hidden="true"><i /></div>
+    <div className="entrance-wine-gourd" aria-hidden="true"><i /></div>
+    <div className="entrance-path" aria-hidden="true" />
+    <div className="entrance-moon" aria-hidden="true" />
+    <div className="door-panel door-left" aria-hidden="true" />
+    <div className="door-panel door-right" aria-hidden="true" />
+    <section className="entrance-copy" aria-labelledby="entrance-title">
+      <p className="entrance-kicker">云月小铺</p>
+      <h1 id="entrance-title">极东有一间刚开业的小铺。</h1>
+      <p>酒刚温。</p>
+      <p>灯刚亮。</p>
+      <p>若不急着赶路。</p>
+      <p>不妨进来坐坐。</p>
+      <button type="button" onClick={onEnter} disabled={opening}>{opening ? '门正在打开……' : '推门而入'}</button>
+    </section>
+  </main>
+}
+
+function ShopHome() {
+  const sign = selectSignMessage()
+  return <>
+    <section className="shop-hero" aria-labelledby="shop-title">
+      <div className="shop-moon" aria-hidden="true" />
+      <div className="shop-intro">
+        <p className="eyebrow">A quiet shop at the end of the road</p>
+        <h1 id="shop-title">云月小铺</h1>
+        <p className="shop-subtitle">云聚云散，月有圆缺。</p>
+        <p className="shop-prologue">掌柜还在未来的路上。<br />眼下这间铺子，由店小二照看。</p>
+      </div>
+      <aside className="wood-sign" aria-label="今日木牌">
+        <span className="sign-rope" aria-hidden="true" />
+        <i className="sign-nail nail-left" aria-hidden="true" />
+        <i className="sign-nail nail-right" aria-hidden="true" />
+        <small>今日木牌</small>
+        {sign.message.lines.map((line) => <p key={line}>{line}</p>)}
+        <span className="sign-seal" aria-label="店小二八千">八千</span>
+      </aside>
+    </section>
+    <section className="shop-map" aria-labelledby="rooms-title">
+      <div className="section-heading">
+        <p className="eyebrow">Inside the shop</p>
+        <h2 id="rooms-title">随意走走</h2>
+        <p>这里不卖身份，也不陈列履历。只把一路所得，分门别类地放进几间屋子。</p>
+      </div>
+      <div className="room-grid">
+        {shopRooms.map((room) => <a className="room-card" href={`#${room.id}`} key={room.id}>
+          <span>{room.mark}</span><h3>{room.name}</h3><p>{room.note}</p><i>推门看看</i>
+        </a>)}
+      </div>
+      <p className="shop-about">来人间凑数的日子。</p>
+    </section>
+  </>
+}
+
+function RoomHeading({ number, title, description }: { number: string; title: string; description: string }) {
+  return <div className="section-heading"><p className="eyebrow">{number} / 云月小铺</p><h2>{title}</h2><p>{description}</p></div>
+}
+
+function UnderRenovation({ room, children }: { room: string; children?: string }) {
+  return <div className="renovation-note"><span aria-hidden="true">修</span><div><h3>{room}还在收拾。</h3><p>{children ?? '木料已经备好，等店小二慢慢拾掇。改日再来，或许就能看见新的模样。'}</p></div></div>
+}
+
+function ShopSignature({ children }: { children: string }) {
+  return <p className="content-signature"><span>八千</span>{children}</p>
+}
+
+function Tavern() {
+  return <section className="section room-section soft-section"><RoomHeading number="01" title="酒桌" description="坐下来以后，不必急着谈正事。这里留下日常、工作、旅行与偶尔冒出来的念头。" />
+    <div className="diary-list">{diary.map((entry) => <article className="diary-card" key={entry.date}><div><span>{entry.date}</span><em>{entry.tag}</em></div><p>{entry.text}</p></article>)}</div>
+    <ShopSignature>记</ShopSignature>
+    <UnderRenovation room="酒桌的里间">旧日记和旅途见闻仍在整理，眼下先留三句话作陪。</UnderRenovation>
+  </section>
+}
+
+function Library() {
+  return <section className="section room-section"><RoomHeading number="02" title="藏书楼" description="读过的书、踩过的坑、做项目时查明白的事情，都在这里重新归档。" />
+    <div className="japanese-grid">{japanesePosts.map((post) => <article className="word-card" key={post.word}><span>{post.type}</span><h3>{post.word}</h3><p className="reading">{post.reading}</p><p>{post.meaning}</p></article>)}</div>
+    <div className="shelf-tags" aria-label="藏书分类"><span>Java</span><span>Spring</span><span>Docker</span><span>AWS</span><span>日本 IT</span><span>数据库</span><span>设计模式</span></div>
+    <section className="contribution-desk" aria-labelledby="contribution-title">
+      <div className="desk-intro"><p className="status">共书案 · 装修中</p><h3 id="contribution-title">留下一句工作中遇见的日语</h3><p>来客留下原句和自己的理解，店小二查证、补充以后，再收入藏书楼。投稿不会未经整理直接公开。</p></div>
+      <form className="contribution-form" onSubmit={(event) => event.preventDefault()}>
+        <label>IT 日语或表达<input placeholder="例：切り分け" /></label>
+        <label>读音<input placeholder="例：きりわけ" /></label>
+        <label className="form-wide">使用场景或自己的理解<textarea rows={3} placeholder="在哪里见到、当时如何使用，或者想确认什么。" /></label>
+        <label className="form-wide">例句或提问<textarea rows={3} placeholder="可以留下原句，也可以写给店小二的问题。" /></label>
+        <label>留名（可选）<input placeholder="不留名也无妨" /></label>
+        <button type="submit" disabled>墨未干，暂不能投递</button>
+      </form>
+      <small>真实投稿接口与后台整理功能将在下一阶段开放。</small>
+    </section>
+    <ShopSignature>整理</ShopSignature>
+    <UnderRenovation room="二楼书架">系统化笔记正在誊写。开放前，先不摆放只有标题的空书。</UnderRenovation>
+  </section>
+}
+
+function Workshop() {
+  return <section className="section room-section resources-section"><RoomHeading number="03" title="百工坊" description="这里不卖课程。这里只放亲手做过、反复修改过、能够说明来路的作品。" />
+    <div className="resources-grid"><article className="package-card"><p className="status">模拟实战项目</p><h3>ASRAY 日本 IT 项目</h3><p>从要件定义、基本设计、详细设计，到 API、数据库、制造、测试与 Release 的完整项目记录。</p><span>作品仍在持续制作</span></article><article className="package-card"><p className="status">专属交付</p><h3>客户资料交付</h3><p>确认后通过专属链接交付，记录有效期与下载次数。真实文件与水印生成将在后续接入。</p><a className="text-link" href="#delivery">持有链接的客人请进 →</a></article></div>
+    <div className="counter-card"><div><p className="status">柜台</p><h3>有事可以找店小二</h3><p>项目资料、交付物与合作事宜，通过微信人工确认。联系方式正式公开前，柜台暂不接单。</p></div><span>お客様サポート · 装修中</span></div>
+  </section>
+}
+
+function Pavilion() {
+  return <section className="section room-section soft-section"><RoomHeading number="04" title="长亭" description="有人在这里送别，也有人从这里启程。以后会放吉他、摄影、旅行和路上的风。" /><UnderRenovation room="长亭">琴弦尚未调好，远行的照片也还没有装框。</UnderRenovation></section>
+}
+
+function CloudRoad() {
+  return <section className="section room-section"><RoomHeading number="05" title="云月路" description="这不是履历，而是一条慢慢写下去的路。店小二走着走着，也许终有一天会遇见掌柜。" />
+    <article className="story-scroll"><small>卷一 · 尚未落笔</small><h3>小铺初开</h3><p>那一年，极东的风吹了很久。有人在路边点起一盏灯，又在门上挂了一块新木牌。</p><p>来客问：“掌柜何在？”</p><p>小二擦了擦桌子，只说：“还在未来。”</p></article>
+    <ShopSignature>记</ShopSignature>
+    <UnderRenovation room="后续章节">故事已经起了头，余下的路要一边生活，一边写。</UnderRenovation>
+  </section>
+}
+
+function Courtyard() {
+  return <section className="section room-section courtyard-section"><RoomHeading number="06" title="后院" description="前铺招待来客，后院留下工具、源码与做事的痕迹。" />
+    <div className="backyard-gate"><p>门没有上锁。</p><h3>若想看看这间小铺是怎样搭起来的，便从这里出去。</h3><a className="button outline" href="https://github.com/rin66-515" target="_blank" rel="noreferrer">推开后门</a></div>
+    <UnderRenovation room="后院工棚">更多工具和公开作品仍在整理，暂时不要被地上的木屑绊倒。</UnderRenovation>
+  </section>
+}
+
+function ShopNotFound() {
+  return <section className="section shop-not-found"><p className="eyebrow">An untrodden path</p><h2>你走的这条路，还没有人来过。</h2><p>这间屋子暂时还没有开门。<br />不妨回小铺里，去别处坐坐。</p><a className="button outline" href="#home">回到小铺</a></section>
 }
 
 function Home() { return <>
@@ -124,14 +313,26 @@ function Delivery({ initialToken }: { initialToken?: string }) {
   const [token, setToken] = useState(initialToken ?? '')
   const [lookup, setLookup] = useState<DeliveryLookup | null>(null)
   const [loading, setLoading] = useState(Boolean(initialToken))
+  const [slowLoading, setSlowLoading] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [downloadNotice, setDownloadNotice] = useState('')
 
   useEffect(() => {
     setToken(initialToken ?? '')
     setDownloadNotice('')
+    setLoadFailed(false)
+    setSlowLoading(false)
     if (!initialToken) { setLookup(null); setLoading(false); return }
     setLoading(true)
-    getDeliveryByToken(initialToken).then(setLookup).catch(() => setLookup({ status: 'not-found' })).finally(() => setLoading(false))
+    const slowTimer = window.setTimeout(() => setSlowLoading(true), 1600)
+    getDeliveryByToken(initialToken)
+      .then(setLookup)
+      .catch(() => setLoadFailed(true))
+      .finally(() => {
+        window.clearTimeout(slowTimer)
+        setLoading(false)
+      })
+    return () => window.clearTimeout(slowTimer)
   }, [initialToken])
 
   function submitToken(event: FormEvent<HTMLFormElement>) {
@@ -151,7 +352,7 @@ function Delivery({ initialToken }: { initialToken?: string }) {
     }
   }
 
-  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>専用受取ページ</h2><p>このページは、交付時にご案内する専用リンクからのみご利用いただく想定です。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">受取トークン</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="専用リンクのトークンを入力" /><button className="button outline" type="submit">受取内容を確認</button></div><small>専用リンクの URL から自動で受取情報を表示します。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">受取情報を確認しています…</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">有効な受取情報を確認できませんでした。ご案内した専用リンクをご確認ください。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>専用受取情報</span><span>{lookup.status === 'active' ? '交付準備済み' : lookup.status === 'preparing' ? '交付準備中' : '有効期限終了'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">配布先：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>配布管理番号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有効期限</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>残りダウンロード回数</dt><dd>{lookup.delivery.remainingDownloads} 回</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>ZIP をダウンロード</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
+  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>专属取件处</h2><p>持有店小二发出的专属链接，即可在这里确认交付内容。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">取件凭证</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="输入专属链接中的凭证" /><button className="button outline" type="submit">确认交付内容</button></div><small>通过专属链接进入时，会自动显示对应的交付信息。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">{slowLoading ? '酒快温好了。' : '掌柜正在温酒……'}</p>}{loadFailed && <p className="delivery-state error" role="alert">风太大，灯晃了一下。稍后再试。</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">没有找到这份交付。请确认店小二发给你的专属链接是否完整。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>专属交付信息</span><span>{lookup.status === 'active' ? '可以取件' : lookup.status === 'preparing' ? '仍在准备' : '有效期已结束'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">交付对象：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>交付管理编号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有效期</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>剩余下载次数</dt><dd>{lookup.delivery.remainingDownloads} 次</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>下载 ZIP</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
 }
 
 const statusLabels: Record<DeliveryStatus, string> = { DRAFT: '草稿', PREPARING: '准备中', ISSUED: '已发放', EXPIRED: '已过期', REVOKED: '已停用', CANCELLED: '已取消' }
