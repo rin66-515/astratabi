@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
+import entranceScene from './assets/yunyue-shop-entrance-v1.webp'
 import { selectSignMessage } from './lib/selectSignMessage'
 import {
   createDelivery,
@@ -158,18 +159,49 @@ const shopRooms = [
   { id: 'courtyard', name: '后院', note: '工具、源码与留下的痕迹', mark: '一扇门' },
 ] as const
 
+const entrancePlaques = [
+  { title: '无事', detail: '今日无事，且坐听风' },
+  { title: '听雨', detail: '雨落屋檐，慢些再走' },
+  { title: '慢行', detail: '路远不急，一步一程' },
+  { title: '平安', detail: '愿来路无恙，归途有灯' },
+] as const
+
+type PlaqueMotionStyle = CSSProperties & {
+  '--plaque-angle': string
+  '--plaque-delay': string
+  '--plaque-duration': string
+  '--plaque-sway': string
+}
+
 function ShopEntrance({ opening, onEnter }: { opening: boolean; onEnter: () => void }) {
+  const [activePlaque, setActivePlaque] = useState<number | null>(null)
+  const plaqueMotion = useMemo<PlaqueMotionStyle[]>(() => entrancePlaques.map(() => ({
+    '--plaque-angle': `${(Math.random() * 5 - 2.5).toFixed(2)}deg`,
+    '--plaque-delay': `${(-Math.random() * 8).toFixed(2)}s`,
+    '--plaque-duration': `${(6.2 + Math.random() * 2.2).toFixed(2)}s`,
+    '--plaque-sway': `${(.8 + Math.random() * 1.4).toFixed(2)}deg`,
+  })), [])
+
   return <main className={`shop-entrance${opening ? ' opening' : ''}`}>
-    <div className="entrance-mountains mountain-far" aria-hidden="true" />
-    <div className="entrance-mountains mountain-near" aria-hidden="true" />
-    <div className="entrance-eaves" aria-hidden="true" />
-    <div className="entrance-lantern" aria-hidden="true"><i /></div>
-    <div className="entrance-spear" aria-hidden="true"><i /></div>
-    <div className="entrance-wine-gourd" aria-hidden="true"><i /></div>
-    <div className="entrance-path" aria-hidden="true" />
-    <div className="entrance-moon" aria-hidden="true" />
-    <div className="door-panel door-left" aria-hidden="true" />
-    <div className="door-panel door-right" aria-hidden="true" />
+    <img className="entrance-scene" src={entranceScene} alt="" />
+    <div className="entrance-mist" aria-hidden="true" />
+    <div className="entrance-warmth" aria-hidden="true" />
+    <aside className="entrance-wish-plaques" aria-label="来客留下的无事牌">
+      {entrancePlaques.map((plaque, index) => <button
+        className={activePlaque === index ? 'active' : ''}
+        style={plaqueMotion[index]}
+        type="button"
+        aria-label={`${plaque.title}木牌：${plaque.detail}`}
+        aria-pressed={activePlaque === index}
+        onClick={() => setActivePlaque(activePlaque === index ? null : index)}
+        key={plaque.title}
+      >
+        <span className="entrance-plaque-card" aria-hidden="true">
+          <span className="entrance-plaque-face entrance-plaque-front">{plaque.title}</span>
+          <span className="entrance-plaque-face entrance-plaque-back">{plaque.detail}</span>
+        </span>
+      </button>)}
+    </aside>
     <section className="entrance-copy" aria-labelledby="entrance-title">
       <p className="entrance-kicker">云月小铺</p>
       <h1 id="entrance-title">极东有一间刚开业的小铺。</h1>
@@ -177,7 +209,7 @@ function ShopEntrance({ opening, onEnter }: { opening: boolean; onEnter: () => v
       <p>灯刚亮。</p>
       <p>若不急着赶路。</p>
       <p>不妨进来坐坐。</p>
-      <button type="button" onClick={onEnter} disabled={opening}>{opening ? '门正在打开……' : '推门而入'}</button>
+      <button type="button" onClick={onEnter} disabled={opening}>{opening ? '灯影渐近……' : '推门而入'}</button>
     </section>
   </main>
 }
