@@ -92,6 +92,10 @@ function App() {
   }, [])
 
   function enterShop() {
+    if (route.page === 'not-found') {
+      window.history.replaceState(null, '', '#home')
+      setRoute({ page: 'home' })
+    }
     setOpening(true)
     window.setTimeout(() => {
       try {
@@ -223,7 +227,7 @@ function ShopHome() {
         <p className="eyebrow">A quiet shop at the end of the road</p>
         <h1 id="shop-title">云月小铺</h1>
         <p className="shop-subtitle">云聚云散，月有圆缺。</p>
-        <p className="shop-prologue">掌柜还在未来的路上。<br />眼下这间铺子，由店小二照看。</p>
+        <p className="shop-prologue">掌柜外出云游中。<br />眼下这间铺子，由店小二照看。</p>
       </div>
       <aside className="wood-sign" aria-label="今日木牌">
         <span className="sign-rope" aria-hidden="true" />

@@ -96,7 +96,7 @@ export const signMessages: Record<SignCategory, readonly SignMessage[]> = {
     { id: 'special-new-year', specialDayKind: 'NEW_YEAR', lines: ['新岁初开。', '第一壶酒。', '敬仍在路上的人。'] },
   ],
   opening: [
-    { id: 'opening-01', lines: ['云月小铺。', '今日初开。', '酒薄，故事也少。', '还请多担待。'] },
+    { id: 'opening-01', lines: ['云月小铺。', '近日初开。', '酒薄，故事也少。', '还请多担待。'] },
     { id: 'opening-02', lines: ['小铺新开。', '木牌是新的。', '掌柜也是生手。'] },
     { id: 'opening-03', lines: ['今日开门。', '尚无熟客。', '诸位来得正好。'] },
     { id: 'opening-04', lines: ['酒刚温。', '灯刚亮。', '故事，也才开了个头。'] },
