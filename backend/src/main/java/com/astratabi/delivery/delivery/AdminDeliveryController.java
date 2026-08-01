@@ -4,8 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -51,7 +51,7 @@ public class AdminDeliveryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DeliveryService.AdminDeliveryResponse create(@Valid @RequestBody CreateRequest request, Authentication authentication) {
-        return service.create(new DeliveryService.CreateDeliveryRequest(request.customerCode(), request.customerName(), request.packageName(), request.expiresAt(), request.downloadLimit()), authentication.getName());
+        return service.create(new DeliveryService.CreateDeliveryRequest(request.customerCode(), request.customerName(), request.packageReleaseId(), request.expiresAt(), request.downloadLimit()), authentication.getName());
     }
 
     @GetMapping("/{id}")
@@ -90,7 +90,7 @@ public class AdminDeliveryController {
     public record CreateRequest(
             @NotBlank(message = "客户编号为必填项。") String customerCode,
             @NotBlank(message = "客户名称为必填项。") String customerName,
-            @NotBlank(message = "资料包名称为必填项。") String packageName,
+            @NotNull(message = "请选择资料包版本。") UUID packageReleaseId,
             @NotNull(message = "有效期为必填项。") @Future(message = "有效期必须是未来时间。") Instant expiresAt,
             @Min(value = 1, message = "下载次数至少为 1。") @Max(value = 20, message = "下载次数不能超过 20。") int downloadLimit) {
     }

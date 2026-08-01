@@ -3,8 +3,10 @@ package com.astratabi.delivery.common;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,6 +29,17 @@ public class ApiExceptionHandler {
             fields.putIfAbsent(error.getField(), error.getDefaultMessage());
         }
         return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "入力内容を確認してください。", request, fields));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    ResponseEntity<ApiError> handleMissingUploadPart(MissingServletRequestPartException exception, HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiError.of("PACKAGE_UPLOAD_PART_REQUIRED", "请同时上传 ZIP 和对应的 .sha256 文件。", request));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiError> handleUploadLimit(MaxUploadSizeExceededException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiError.of("PACKAGE_TOO_LARGE", "上传资料包超过服务器允许的大小。", request));
     }
 
     @ExceptionHandler(Exception.class)

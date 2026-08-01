@@ -1,5 +1,6 @@
 package com.astratabi.delivery.delivery;
 
+import com.astratabi.delivery.packagefile.PortalPackageRelease;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -32,6 +33,9 @@ public class PortalDelivery {
     String projectName;
     @Column(name = "package_name", nullable = false, length = 200)
     String packageName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "package_release_id")
+    PortalPackageRelease packageRelease;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     DeliveryStatus status;
@@ -59,14 +63,16 @@ public class PortalDelivery {
     protected PortalDelivery() {
     }
 
-    public static PortalDelivery create(String deliveryNo, PortalCustomer customer, String packageName, Instant expiresAt, int downloadLimit) {
+    public static PortalDelivery create(String deliveryNo, PortalCustomer customer, PortalPackageRelease packageRelease,
+                                        Instant expiresAt, int downloadLimit) {
         PortalDelivery delivery = new PortalDelivery();
         delivery.id = UUID.randomUUID();
         delivery.deliveryNo = deliveryNo;
         delivery.customer = customer;
         delivery.projectCode = "ASRAY";
         delivery.projectName = "ASRAY 勤怠・承認管理システム";
-        delivery.packageName = packageName;
+        delivery.packageRelease = packageRelease;
+        delivery.packageName = packageRelease.fileName();
         delivery.status = DeliveryStatus.DRAFT;
         delivery.expiresAt = expiresAt;
         delivery.downloadLimit = downloadLimit;
@@ -126,6 +132,7 @@ public class PortalDelivery {
     public PortalCustomer customer() { return customer; }
     public String projectName() { return projectName; }
     public String packageName() { return packageName; }
+    public PortalPackageRelease packageRelease() { return packageRelease; }
     public DeliveryStatus status() { return status; }
     public Instant expiresAt() { return expiresAt; }
     public int downloadLimit() { return downloadLimit; }

@@ -1,0 +1,5 @@
+.m2-repository
+.portal-data
+target
+.env
+.env.*

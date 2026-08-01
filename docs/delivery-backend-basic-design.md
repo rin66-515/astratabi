@@ -1,8 +1,8 @@
 # AstraTabi Portal：交付后台基本设计书
 
-- 版本：0.2
-- 日期：2026-07-26
-- 状态：第 1～3 阶段已实现；文件交付模块待实现
+- 版本：0.3
+- 日期：2026-08-01
+- 状态：不可变母版 ZIP 管理已实现；客户水印副本与真实下载待实现
 - 适用范围：AstraTabi 的资料包人工确认收款、客户专属链接交付与单管理员运营
 
 ## 1. 目标与边界
@@ -29,8 +29,9 @@
 
 ```text
 小红书 / 抖音内容 → 公开资料页 → 微信人工沟通与付款
-→ 管理员确认收款 → 建立交付并生成专属令牌
-→ 上传或选择原始资料包 → 服务端生成水印副本
+→ 管理员上传 ZIP 与 SHA-256，登记不可变母版版本
+→ 管理员确认收款 → 选择母版版本并建立交付、生成专属令牌
+→ 服务端生成客户水印副本
 → 管理员复制链接，通过微信发送
 → 客户打开链接 → 服务端校验 → 下载并记录日志
 ```
@@ -81,7 +82,8 @@
 |---|---|---|
 | `portal_admin_user` | `admin_id`、`login_id`、`password_hash`、`enabled`、`last_login_at` | 单管理员账户 |
 | `portal_customer` | `customer_id`、`customer_code`、`display_name`、`wechat_contact`、`created_at` | 客户和微信联系信息 |
-| `portal_delivery` | `delivery_id`、`delivery_no`、`customer_id`、`project_code`、`status`、`expires_at`、`download_limit`、`download_count`、`watermark_text` | 一次交付的主记录 |
+| `portal_package_release` | `package_release_id`、`project_code`、`version`、`release_date`、`file_name`、`storage_key`、`sha256`、`status` | 经校验的不可变母版 ZIP 版本 |
+| `portal_delivery` | `delivery_id`、`delivery_no`、`customer_id`、`package_release_id`、`project_code`、`status`、`expires_at`、`download_limit`、`download_count`、`watermark_text` | 一次交付的主记录；旧数据允许母版外键为空 |
 | `portal_delivery_package` | `package_id`、`delivery_id`、`source_object_key`、`delivered_object_key`、`file_name`、`sha256`、`generation_status` | 原始资料与客户水印副本 |
 | `portal_delivery_token` | `token_id`、`delivery_id`、`token_hash`、`issued_at`、`revoked_at`、`last_used_at` | 专属链接令牌，支持重发与撤销 |
 | `portal_download_event` | `event_id`、`delivery_id`、`token_id`、`package_id`、`event_type`、`occurred_at`、`client_ip`、`user_agent` | 查看、下载请求、下载成功/失败日志 |
@@ -95,6 +97,10 @@
 - `download_count <= download_limit` 由数据库事务和行锁保证。
 - `watermark_text` 在发放时固定，例如：`ASRAY / C001 / DL-20260726-C001-0001`；之后不因客户资料修改而变化。
 - 原始对象与交付对象均使用私有存储路径；数据库仅保存对象键，不保存公网文件 URL。
+- 母版 ZIP 文件名格式为 `ASRAY_COMPLETE_v{SemVer}_{YYYYMMDD}.zip`，并必须同时上传同名 `.sha256`。
+- 服务端重新计算 SHA-256；同名同哈希视为幂等，同名异哈希或同版本/发布日期异文件一律拒绝覆盖。
+- 母版只能从 `ACTIVE` 归档为 `ARCHIVED`，物理文件不删除；归档不影响已有交付，但不能用于新交付。
+- ZIP 上传时检查空包、条目数量、解压总量、异常压缩比、重复路径和路径穿越。
 
 ## 5. API 基本契约
 
@@ -106,8 +112,10 @@
 | `POST` | `/api/v1/admin/auth/logout` | 注销会话 |
 | `GET` | `/api/v1/admin/session` | 取得当前管理员信息 |
 | `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录 |
-| `POST` | `/api/v1/admin/deliveries` | 建立 `DRAFT` 交付记录 |
-| `POST` | `/api/v1/admin/deliveries/{id}/packages` | 上传原始 ZIP 或关联已存在资料包 |
+| `GET` | `/api/v1/admin/package-releases` | 查询有效/归档母版版本 |
+| `POST` | `/api/v1/admin/package-releases` | 同时上传 ZIP 与 `.sha256`，校验后登记不可变版本 |
+| `POST` | `/api/v1/admin/package-releases/{id}/archive` | 逻辑归档母版；不删除文件 |
+| `POST` | `/api/v1/admin/deliveries` | 选择一个 `ACTIVE packageReleaseId` 建立 `DRAFT` 交付记录 |
 | `POST` | `/api/v1/admin/deliveries/{id}/issue` | 生成水印副本、令牌与可复制专属链接 |
 | `POST` | `/api/v1/admin/deliveries/{id}/extend` | 延长有效期 |
 | `POST` | `/api/v1/admin/deliveries/{id}/reissue` | 撤销旧令牌并发放新链接 |
@@ -130,12 +138,12 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 
 ### 6.1 生成规则
 
-1. 管理员确认收款后创建或选择 `DRAFT` 交付。
-2. 服务端分配 `delivery_no`。
-3. 服务端生成并持久化 `watermark_text`。
-4. 服务端从原始资料生成客户专属副本，在 Excel 工作表的可见页眉/页脚或约定位置写入水印信息。
-5. 将生成后的文件打包为 ZIP，计算 SHA-256，存入私有存储。
-6. 管理员检查成功后将交付状态更新为 `ISSUED`，并仅在此时返回原始专属链接一次。
+1. 管理员先上传不可变母版 ZIP 与 `.sha256`，服务端完成文件名、哈希和 ZIP 安全校验。
+2. 管理员确认收款后选择一个 `ACTIVE` 母版版本创建 `DRAFT` 交付。
+3. 服务端分配 `delivery_no` 并固定母版外键、文件名和 `watermark_text`。
+4. 服务端从母版生成客户专属副本，在 Excel 工作表的可见页眉/页脚或约定位置写入水印信息（待实现）。
+5. 将生成后的副本打包为 ZIP，计算 SHA-256，存入私有存储（待实现）。
+6. 管理员检查成功后将交付状态更新为 `ISSUED`，并仅在此时返回原始专属链接一次（待实现）。
 
 ### 6.2 下载次数处理
 
@@ -162,7 +170,8 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 | 交付总数、发放中、即将到期、已停用 | `GET /admin/deliveries?summary=true` | 统计值 |
 | 搜索、状态筛选、分页 | `GET /admin/deliveries` | 服务器分页列表 |
 | 新建交付 | `POST /admin/deliveries` | `DRAFT` 记录 |
-| 上传资料 | `POST /admin/deliveries/{id}/packages` | 私有原始对象 |
+| 上传母版 | `POST /admin/package-releases` | 私有不可变 ZIP、SHA-256 与版本记录 |
+| 归档母版 | `POST /admin/package-releases/{id}/archive` | 保留文件并禁止新交付选择 |
 | 生成专属链接 | `POST /admin/deliveries/{id}/issue` | 水印 ZIP、令牌、链接 |
 | 详情抽屉 | `GET /admin/deliveries/{id}` | 交付、资料、令牌摘要 |
 | 延期、重发、停用 | 各状态变更 API | 新状态与审计日志 |
@@ -172,13 +181,13 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 1. Spring Boot 管理员认证、会话和 PostgreSQL 迁移。
 2. 客户/交付/令牌/审计表与管理列表 API。
 3. 管理台与客户受取页面连接真实 API。
-4. 私有文件上传、原始 ZIP 管理和交付状态流转。
+4. 私有文件上传、不可变母版 ZIP 管理和交付版本固定。（已完成）
 5. Excel 水印副本与 ZIP 生成任务。
 6. 一次性下载票据、次数限制与实际文件流交付。
 7. 单体测试、结合测试、综合测试与上线检查。
 8. HTTPS、反向代理、备份、日志轮转与正式发布。
 
-## 10. 实现记录（2026-07-26）
+## 10. 实现记录（更新：2026-08-01）
 
 ### 10.1 已完成
 
@@ -188,11 +197,15 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 - 管理端已接通交付创建、列表/分页/筛选、汇总、链接发放/重发、延期、停止和事件查询 API。
 - 客户端已接通令牌摘要查询；资料尚未完成时返回 `PREPARING`，下载票据请求返回 `409 DELIVERY_NOT_READY`，不会扣减次数。
 - React 管理台已经替换为真实 API 数据源；Vite 本机代理使用 `/api`，避免开发时跨域会话问题。
+- Flyway V5/V6 已建立 `portal_package_release` 及交付外键，并通过 PostgreSQL 18.4 与 Hibernate Schema Validate。
+- 后端已实现私有目录存储、双文件上传、SHA-256 重算、ZIP 安全检查、不可覆盖、幂等重传和逻辑归档。
+- 管理台已实现母版上传、版本/哈希列表、归档操作，以及新建交付时只能选择有效母版版本。
+- 项目内测试件为 `dev-fixtures/ASRAY_COMPLETE_v0.0.0_20260801.zip`；仅用于开发验证，不是正式交付包。
 
 ### 10.2 本期保留的边界
 
-- 不上传、保存或公开原始 ZIP。
-- 不生成 Excel 只读副本、水印 ZIP 或真实下载文件。
+- 母版 ZIP 已允许上传并保存，但只位于后端私有目录，不提供公开下载 URL。
+- 不生成 Excel 只读副本、客户水印 ZIP 或真实下载文件。
 - `GET /api/v1/download-tickets/{ticket}` 在文件交付模块完成前返回“尚未实现”；不可借此消耗次数。
 - 上述边界是为了保证“点击即扣减”的规则只在确实能交付文件时启用。
 

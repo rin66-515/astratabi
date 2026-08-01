@@ -23,6 +23,22 @@ export type DeliveryLookup =
 export type AdminSession = { loginId: string; authenticated: boolean }
 
 export type DeliveryStatus = 'DRAFT' | 'PREPARING' | 'ISSUED' | 'EXPIRED' | 'REVOKED' | 'CANCELLED'
+export type PackageReleaseStatus = 'ACTIVE' | 'ARCHIVED'
+
+export type PackageRelease = {
+  id: string
+  projectCode: string
+  baseName: string
+  version: string
+  releaseDate: string
+  fileName: string
+  sha256: string
+  fileSize: number
+  status: PackageReleaseStatus
+  uploadedBy: string
+  uploadedAt: string
+  archivedAt: string | null
+}
 
 export type AdminDelivery = {
   id: string
@@ -31,6 +47,8 @@ export type AdminDelivery = {
   customerName: string
   projectName: string
   packageName: string
+  packageReleaseId: string | null
+  packageVersion: string | null
   status: DeliveryStatus
   expiresAt: string
   downloadLimit: number
@@ -151,7 +169,24 @@ export function getAdminEvents(id: string) {
   return request<DeliveryEvent[]>(`/api/v1/admin/deliveries/${id}/events`)
 }
 
-export function createDelivery(payload: { customerCode: string; customerName: string; packageName: string; expiresAt: string; downloadLimit: number }) {
+export function getPackageReleases(includeArchived = false) {
+  return request<PackageRelease[]>(`/api/v1/admin/package-releases?includeArchived=${includeArchived}`)
+}
+
+export function uploadPackageRelease(archive: File, checksum: File) {
+  const body = new FormData()
+  body.set('archive', archive)
+  body.set('checksum', checksum)
+  return adminRequest<{ release: PackageRelease; duplicate: boolean }>('/api/v1/admin/package-releases', {
+    method: 'POST', body,
+  })
+}
+
+export function archivePackageRelease(id: string) {
+  return adminRequest<PackageRelease>(`/api/v1/admin/package-releases/${id}/archive`, { method: 'POST' })
+}
+
+export function createDelivery(payload: { customerCode: string; customerName: string; packageReleaseId: string; expiresAt: string; downloadLimit: number }) {
   return adminRequest<AdminDelivery>('/api/v1/admin/deliveries', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   })

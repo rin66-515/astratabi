@@ -1,4 +1,50 @@
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18100:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORTAL_BACKEND_PORT: "18082"
+      PORTAL_DB_URL: jdbc:postgresql://postgres:5432/astratabi
+      PORTAL_DB_USERNAME: astratabi
+      PORTAL_DB_PASSWORD: astratabi_local_only
+      PORTAL_PUBLIC_BASE_URL: http://127.0.0.1:18100
+      PORTAL_BOOTSTRAP_ADMIN_LOGIN_ID: ${PORTAL_BOOTSTRAP_ADMIN_LOGIN_ID:-admin-001}
+      PORTAL_BOOTSTRAP_ADMIN_PASSWORD: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD:-astratabi-local-admin}
+      PORTAL_TOKEN_PEPPER: ${PORTAL_TOKEN_PEPPER:-astratabi-local-only-token-pepper-change-before-production}
+      PORTAL_COOKIE_SECURE: "false"
+      PORTAL_PACKAGE_STORAGE_ROOT: /var/lib/astratabi/packages
+    ports:
+      - "127.0.0.1:18082:18082"
+    volumes:
+      - astratabi-package-data:/var/lib/astratabi/packages
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:18082/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
   postgres:
     image: postgres:18.4
     environment:
@@ -17,3 +63,4 @@ services:
 
 volumes:
   astratabi-postgres-data:
+  astratabi-package-data:

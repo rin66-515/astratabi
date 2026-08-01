@@ -4,6 +4,8 @@ import com.astratabi.delivery.audit.AuditService;
 import com.astratabi.delivery.common.ApiException;
 import com.astratabi.delivery.common.SecretHash;
 import com.astratabi.delivery.config.PortalProperties;
+import com.astratabi.delivery.packagefile.PackageReleaseService;
+import com.astratabi.delivery.packagefile.PortalPackageRelease;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,10 +34,12 @@ public class DeliveryService {
     private final PortalDownloadEventRepository eventRepository;
     private final AuditService auditService;
     private final PortalProperties properties;
+    private final PackageReleaseService packageReleaseService;
 
     public DeliveryService(PortalCustomerRepository customerRepository, PortalDeliveryRepository deliveryRepository,
                            PortalDeliveryTokenRepository tokenRepository, PortalDownloadTicketRepository ticketRepository,
-                           PortalDownloadEventRepository eventRepository, AuditService auditService, PortalProperties properties) {
+                           PortalDownloadEventRepository eventRepository, AuditService auditService, PortalProperties properties,
+                           PackageReleaseService packageReleaseService) {
         this.customerRepository = customerRepository;
         this.deliveryRepository = deliveryRepository;
         this.tokenRepository = tokenRepository;
@@ -43,16 +47,18 @@ public class DeliveryService {
         this.eventRepository = eventRepository;
         this.auditService = auditService;
         this.properties = properties;
+        this.packageReleaseService = packageReleaseService;
     }
 
     @Transactional
     public AdminDeliveryResponse create(CreateDeliveryRequest request, String actorId) {
+        PortalPackageRelease packageRelease = packageReleaseService.requireActive(request.packageReleaseId());
         String customerCode = request.customerCode().trim().toUpperCase();
         PortalCustomer customer = customerRepository.findByCustomerCode(customerCode)
                 .orElseGet(() -> customerRepository.save(PortalCustomer.create(customerCode, request.customerName().trim())));
         String prefix = "DL-" + LocalDate.now(ZoneOffset.UTC).toString().replace("-", "") + "-" + customerCode + "-";
         String deliveryNo = prefix + String.format("%04d", deliveryRepository.countByDeliveryNoStartingWith(prefix) + 1);
-        PortalDelivery delivery = deliveryRepository.save(PortalDelivery.create(deliveryNo, customer, request.packageName().trim(), request.expiresAt(), request.downloadLimit()));
+        PortalDelivery delivery = deliveryRepository.save(PortalDelivery.create(deliveryNo, customer, packageRelease, request.expiresAt(), request.downloadLimit()));
         auditService.record("ADMIN", actorId, "DELIVERY_CREATED", "DELIVERY", delivery.id().toString(), null,
                 "{\"deliveryNo\":\"" + delivery.deliveryNo() + "\",\"status\":\"DRAFT\"}");
         return AdminDeliveryResponse.from(delivery);
@@ -214,15 +220,19 @@ public class DeliveryService {
         return request.getRemoteAddr();
     }
 
-    public record CreateDeliveryRequest(String customerCode, String customerName, String packageName, Instant expiresAt, int downloadLimit) {
+    public record CreateDeliveryRequest(String customerCode, String customerName, UUID packageReleaseId, Instant expiresAt, int downloadLimit) {
     }
 
     public record AdminDeliveryResponse(UUID id, String deliveryNo, String customerCode, String customerName, String projectName,
-                                        String packageName, DeliveryStatus status, Instant expiresAt, int downloadLimit,
+                                        String packageName, UUID packageReleaseId, String packageVersion,
+                                        DeliveryStatus status, Instant expiresAt, int downloadLimit,
                                         int downloadCount, int remainingDownloads, String watermarkText, boolean packageReady) {
         static AdminDeliveryResponse from(PortalDelivery delivery) {
             return new AdminDeliveryResponse(delivery.id(), delivery.deliveryNo(), delivery.customer().customerCode(), delivery.customer().displayName(),
-                    delivery.projectName(), delivery.packageName(), delivery.status(), delivery.expiresAt(), delivery.downloadLimit(),
+                    delivery.projectName(), delivery.packageName(),
+                    delivery.packageRelease() == null ? null : delivery.packageRelease().id(),
+                    delivery.packageRelease() == null ? null : delivery.packageRelease().version(),
+                    delivery.status(), delivery.expiresAt(), delivery.downloadLimit(),
                     delivery.downloadCount(), delivery.remainingDownloads(), delivery.watermarkText(), delivery.packageReady());
         }
     }

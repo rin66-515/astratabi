@@ -1,0 +1,13 @@
+.git
+.github
+.npm-cache
+.portal-data
+backend
+dev-fixtures
+dist
+docs
+node_modules
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

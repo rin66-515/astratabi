@@ -1,0 +1,24 @@
+FROM maven:3.9-eclipse-temurin-21-alpine AS backend-build
+
+WORKDIR /workspace
+
+COPY pom.xml ./
+RUN mvn --batch-mode dependency:go-offline
+
+COPY src ./src
+RUN mvn --batch-mode -DskipTests package
+
+FROM eclipse-temurin:21-jre-alpine
+
+RUN apk add --no-cache su-exec \
+    && addgroup -S astratabi \
+    && adduser -S -G astratabi astratabi
+
+WORKDIR /app
+COPY --from=backend-build /workspace/target/astratabi-delivery-backend-0.1.0-SNAPSHOT.jar /app/application.jar
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 18082
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -3,6 +3,9 @@ dist/
 .npm-cache/
 *.tsbuildinfo
 backend/target/
+.portal-data/
+backend/.portal-data/
+backend/.m2-repository/
 vite.config.js
 vite.config.d.ts
 .env

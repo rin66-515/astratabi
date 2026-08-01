@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: astratabi-delivery-backend
+  servlet:
+    multipart:
+      max-file-size: 210MB
+      max-request-size: 211MB
   datasource:
     url: ${PORTAL_DB_URL:jdbc:postgresql://127.0.0.1:15432/astratabi}
     username: ${PORTAL_DB_USERNAME:astratabi}
@@ -25,6 +29,12 @@ portal:
     cookie-secure: ${PORTAL_COOKIE_SECURE:true}
     admin-lock-minutes: 15
     max-failed-logins: 5
+  package-storage:
+    root: ${PORTAL_PACKAGE_STORAGE_ROOT:.portal-data}
+    allowed-base-name: ${PORTAL_PACKAGE_BASE_NAME:ASRAY_COMPLETE}
+    max-upload-bytes: ${PORTAL_PACKAGE_MAX_UPLOAD_BYTES:209715200}
+    max-entry-count: 10000
+    max-uncompressed-bytes: 1073741824
 
 management:
   endpoints:

@@ -3,22 +3,26 @@ import logo from './assets/astratabi-logo-main.png'
 import entranceScene from './assets/yunyue-shop-entrance-v1.webp'
 import { selectSignMessage } from './lib/selectSignMessage'
 import {
+  archivePackageRelease,
   createDelivery,
   extendDelivery,
   getAdminDeliveries,
   getAdminEvents,
   getAdminSession,
   getAdminSummary,
+  getPackageReleases,
   getDeliveryByToken,
   issueDelivery,
   login,
   logout,
   requestDownloadTicket,
   revokeDelivery,
+  uploadPackageRelease,
   type AdminDelivery,
   type ApiError,
   type DeliveryEvent,
   type DeliveryLookup,
+  type PackageRelease,
   type DeliveryStatus,
   type DeliverySummaryCounts,
 } from './api/client'
@@ -438,17 +442,22 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
 }
 
 function LiveDeliveryDetails({ record, events, notice, onAction }: { record: AdminDelivery; events: DeliveryEvent[]; notice: string; onAction: (action: 'extend' | 'reissue' | 'revoke') => void }) {
-  return <><p className="status">交付详情</p><h3>{record.deliveryNo}</h3><dl><div><dt>客户</dt><dd>{record.customerCode} / {record.customerName}</dd></div><div><dt>案件</dt><dd>{record.projectName}</dd></div><div><dt>资料包</dt><dd>{record.packageName}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>下载次数</dt><dd>{record.downloadCount} / {record.downloadLimit}</dd></div></dl><div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长 30 日</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('revoke')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>{record.status === 'PREPARING' ? '资料包和水印生成模块尚未接入；现在的专属链接只显示“准备中”，不会消耗下载次数。' : '所有状态变更和下载事件均由服务端记录。'}</small>{events.length > 0 && <ol className="admin-event-list">{events.slice(0, 4).map((event) => <li key={`${event.occurredAt}-${event.eventType}`}><time>{formatDate(event.occurredAt)}</time><span>{event.eventType}</span></li>)}</ol>}</>
+  return <><p className="status">交付详情</p><h3>{record.deliveryNo}</h3><dl><div><dt>客户</dt><dd>{record.customerCode} / {record.customerName}</dd></div><div><dt>案件</dt><dd>{record.projectName}</dd></div><div><dt>母版资料包</dt><dd>{record.packageName}{record.packageVersion ? ` / v${record.packageVersion}` : ' / 旧数据'}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>下载次数</dt><dd>{record.downloadCount} / {record.downloadLimit}</dd></div></dl><div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长 30 日</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('revoke')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>{record.status === 'PREPARING' ? '母版版本已经固定；客户水印副本尚未生成，当前链接只显示“准备中”，不会消耗下载次数。' : '所有状态变更和下载事件均由服务端记录。'}</small>{events.length > 0 && <ol className="admin-event-list">{events.slice(0, 4).map((event) => <li key={`${event.occurredAt}-${event.eventType}`}><time>{formatDate(event.occurredAt)}</time><span>{event.eventType}</span></li>)}</ol>}</>
 }
 
 function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [records, setRecords] = useState<AdminDelivery[]>([])
+  const [packageReleases, setPackageReleases] = useState<PackageRelease[]>([])
   const [summary, setSummary] = useState<DeliverySummaryCounts>({ total: 0, issued: 0, preparing: 0, revoked: 0 })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [events, setEvents] = useState<DeliveryEvent[]>([])
   const [customerCode, setCustomerCode] = useState('C001')
   const [customerName, setCustomerName] = useState('')
-  const [packageName, setPackageName] = useState('設計書パッケージ（ZIP）')
+  const [packageReleaseId, setPackageReleaseId] = useState('')
+  const [archiveFile, setArchiveFile] = useState<File | null>(null)
+  const [checksumFile, setChecksumFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [packageNotice, setPackageNotice] = useState('')
   const [expiresAt, setExpiresAt] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
   const [downloadLimit, setDownloadLimit] = useState('3')
   const [issuedLink, setIssuedLink] = useState('')
@@ -474,14 +483,26 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       .catch((error: ApiError) => setNotice(error.message))
   }
 
+  function refreshPackages() {
+    return getPackageReleases(true)
+      .then((releases) => {
+        setPackageReleases(releases)
+        const active = releases.filter((release) => release.status === 'ACTIVE')
+        setPackageReleaseId((current) => active.some((release) => release.id === current) ? current : active[0]?.id ?? '')
+      })
+      .catch((error: ApiError) => setPackageNotice(error.message))
+  }
+
   useEffect(() => { void refresh() }, [page, search, statusFilter])
+  useEffect(() => { void refreshPackages() }, [])
   useEffect(() => { if (selectedId) getAdminEvents(selectedId).then(setEvents).catch(() => setEvents([])) }, [selectedId])
 
   async function submitDelivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setNotice('')
     try {
-      const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageName, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
+      if (!packageReleaseId) throw new Error('请先上传并选择一个有效资料包版本。')
+      const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageReleaseId, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
       const issued = await issueDelivery(created.id)
       setIssuedLink(issued.deliveryLink)
       setNotice('已创建交付并生成专属链接。资料包生成完成前，客户页面会显示“准备中”。')
@@ -489,6 +510,40 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       setSelectedId(created.id)
     } catch (error) {
       setNotice((error as ApiError).message)
+    }
+  }
+
+  async function submitPackage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!archiveFile || !checksumFile) {
+      setPackageNotice('请同时选择 ZIP 和对应的 .sha256 文件。')
+      return
+    }
+    setUploading(true)
+    setPackageNotice('')
+    try {
+      const result = await uploadPackageRelease(archiveFile, checksumFile)
+      setPackageNotice(result.duplicate ? '该版本与服务器现有文件一致，未重复保存。' : `已登记不可变资料包：${result.release.fileName}`)
+      setArchiveFile(null)
+      setChecksumFile(null)
+      event.currentTarget.reset()
+      await refreshPackages()
+      setPackageReleaseId(result.release.id)
+    } catch (error) {
+      setPackageNotice((error as ApiError).message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function archiveRelease(release: PackageRelease) {
+    if (!window.confirm(`归档 ${release.fileName}？已存在的交付仍保留该版本，但新交付不能再选择。`)) return
+    try {
+      await archivePackageRelease(release.id)
+      setPackageNotice(`已归档 ${release.fileName}，服务器文件未删除。`)
+      await refreshPackages()
+    } catch (error) {
+      setPackageNotice((error as ApiError).message)
     }
   }
 
@@ -513,7 +568,74 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
     onLoggedOut()
   }
 
+  const activeReleases = packageReleases.filter((release) => release.status === 'ACTIVE')
+
+  return <section className="section admin-preview-section">
+    <div className="section-heading">
+      <p className="eyebrow">运营管理</p><h2>交付管理台</h2>
+      <p>当前数据来自本机 PostgreSQL。母版 ZIP 已进入不可变版本管理；客户水印副本和真实下载仍在后续阶段。</p>
+      <button className="text-button" type="button" onClick={signOut}>退出管理台 →</button>
+    </div>
+    <div className="admin-summary">
+      <article><span>交付总数</span><strong>{summary.total}</strong><small>全部记录</small></article>
+      <article><span>已发放</span><strong>{summary.issued}</strong><small>客户可领取</small></article>
+      <article><span>准备中</span><strong>{summary.preparing}</strong><small>等待水印副本</small></article>
+      <article><span>已停用</span><strong>{summary.revoked}</strong><small>停止使用</small></article>
+    </div>
+    <section className="admin-panel admin-package-panel">
+      <div className="admin-panel-heading"><div><p className="status">母版管理</p><h3>上传不可变 ZIP 版本</h3></div><span>{activeReleases.length} 个有效版本</span></div>
+      <form className="admin-package-upload" onSubmit={submitPackage}>
+        <label className="admin-field">ZIP 母版<input type="file" accept=".zip,application/zip" onChange={(event) => setArchiveFile(event.target.files?.[0] ?? null)} /></label>
+        <label className="admin-field">SHA-256 校验文件<input type="file" accept=".sha256,text/plain" onChange={(event) => setChecksumFile(event.target.files?.[0] ?? null)} /></label>
+        <button className="button primary" type="submit" disabled={uploading}>{uploading ? '校验并保存中…' : '校验并登记版本'}</button>
+      </form>
+      <p className="admin-package-rule">文件名须为 ASRAY_COMPLETE_vX.Y.Z_YYYYMMDD.zip；服务器会重新计算哈希、检查 ZIP 安全性，并拒绝覆盖已有版本。</p>
+      {packageNotice && <p className="admin-detail-notice" role="status">{packageNotice}</p>}
+      <div className="admin-package-list">
+        {packageReleases.length === 0 && <p className="admin-package-empty">尚未登记资料包。可先使用项目内的模拟压缩包进行测试。</p>}
+        {packageReleases.map((release) => <article key={release.id}>
+          <div><strong>{release.fileName}</strong><span>v{release.version} · {release.releaseDate} · {(release.fileSize / 1024).toFixed(1)} KB</span><code>SHA-256 {release.sha256}</code></div>
+          <span className={`admin-status ${release.status === 'ACTIVE' ? 'issued' : 'stopped'}`}>{release.status === 'ACTIVE' ? '有效' : '已归档'}</span>
+          {release.status === 'ACTIVE' && <button type="button" onClick={() => void archiveRelease(release)}>归档</button>}
+        </article>)}
+      </div>
+    </section>
+    <section className="admin-panel admin-issue-panel">
+      <div className="admin-panel-heading"><div><p className="status">新建交付</p><h3>生成客户专属链接</h3></div><span>真实 API</span></div>
+      <form className="admin-form" onSubmit={submitDelivery}>
+        <div className="admin-form-grid">
+          <label className="admin-field">客户编号<input value={customerCode} onChange={(event) => setCustomerCode(event.target.value)} placeholder="例：C001" /></label>
+          <label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label>
+          <div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div>
+          <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>v{release.version} / {release.releaseDate}</option>)}</select></label>
+          <div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后由服务器固定</strong></div>
+          <label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
+          <label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label>
+        </div>
+        <div className="admin-form-actions"><p>该记录会固定引用所选母版版本。当前仅生成准备中链接，不会开放真实文件下载。</p><button className="button primary" type="submit" disabled={!packageReleaseId}>生成专属链接</button></div>
+      </form>
+      {issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><a href={issuedLink}>{issuedLink}</a></div>}
+    </section>
+    <div className="admin-management">
+      <section className="admin-panel admin-list-panel">
+        <div className="admin-panel-heading"><div><p className="status">交付记录</p><h3>客户交付一览</h3></div><span>{totalElements} 条</span></div>
+        <div className="admin-filters"><label><span>搜索</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} placeholder="交付编号或客户名称" /></label><label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as DeliveryStatus | ''); setPage(0) }}><option value="">全部</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+        <div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{records.map((record) => <tr className={record.id === selected?.id ? 'selected' : ''} key={record.id}><td><strong>{record.deliveryNo}</strong><span>{record.customerCode} / {record.customerName}</span></td><td>{formatDate(record.expiresAt)}</td><td>{record.downloadCount} / {record.downloadLimit}</td><td><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setNotice('') }}>详情</button></td></tr>)}</tbody></table></div>
+        <div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => { setSelectedId(record.id); setMobileDetailOpen(true) }}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div>
+        <div className="admin-pagination"><span>{totalElements === 0 ? '0 条' : `${page * 8 + 1}–${Math.min((page + 1) * 8, totalElements)} / 共 ${totalElements} 条`}</span><div><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>上一页</button><span>{page + 1} / {totalPages}</span><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>下一页</button></div></div>
+      </section>
+      {selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}
+    </div>
+    {mobileDetailOpen && selected && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></section></div>}
+    <section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>母版 ZIP 校验、不可变版本登记、交付版本固定、认证与审计</span><em>已接通</em></li><li><time>下一阶段</time><span>客户专属 Excel 水印副本、ZIP 生成与一次性下载票据</span><em>待实现</em></li></ol></section>
+  </section>
+
+  /* Previous one-line layout retained temporarily until the new layout compiles.
+
   return <section className="section admin-preview-section"><div className="section-heading"><p className="eyebrow">运营管理</p><h2>交付管理台</h2><p>当前数据来自本机 PostgreSQL。资料文件、水印与真实下载将在最后一个文件交付阶段接入。</p><button className="text-button" type="button" onClick={signOut}>退出管理台 →</button></div><div className="admin-summary"><article><span>交付总数</span><strong>{summary.total}</strong><small>全部记录</small></article><article><span>已发放</span><strong>{summary.issued}</strong><small>客户可领取</small></article><article><span>准备中</span><strong>{summary.preparing}</strong><small>等待资料包</small></article><article><span>已停用</span><strong>{summary.revoked}</strong><small>可重新发放</small></article></div><section className="admin-panel admin-issue-panel"><div className="admin-panel-heading"><div><p className="status">新建交付</p><h3>生成客户专属链接</h3></div><span>真实 API</span></div><form className="admin-form" onSubmit={submitDelivery}><div className="admin-form-grid"><label className="admin-field">客户编号<input value={customerCode} onChange={(event) => setCustomerCode(event.target.value)} placeholder="例：C001" /></label><label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label><div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div><label className="admin-field">资料包名称<input value={packageName} onChange={(event) => setPackageName(event.target.value)} /></label><div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后由服务器固定</strong></div><label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label><label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label></div><div className="admin-form-actions"><p>生成链接不代表资料已交付。只有最后的文件与水印阶段完成并由服务器切换为“已发放”后，客户才可下载。</p><button className="button primary" type="submit">生成专属链接</button></div></form>{issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><a href={issuedLink}>{issuedLink}</a></div>}</section><div className="admin-management"><section className="admin-panel admin-list-panel"><div className="admin-panel-heading"><div><p className="status">交付记录</p><h3>客户交付一览</h3></div><span>{totalElements} 条</span></div><div className="admin-filters"><label><span>搜索</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} placeholder="交付编号或客户名称" /></label><label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as DeliveryStatus | ''); setPage(0) }}><option value="">全部</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div><div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{records.map((record) => <tr className={record.id === selected?.id ? 'selected' : ''} key={record.id}><td><strong>{record.deliveryNo}</strong><span>{record.customerCode} / {record.customerName}</span></td><td>{formatDate(record.expiresAt)}</td><td>{record.downloadCount} / {record.downloadLimit}</td><td><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setNotice('') }}>详情</button></td></tr>)}</tbody></table></div><div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => { setSelectedId(record.id); setMobileDetailOpen(true) }}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div><div className="admin-pagination"><span>{totalElements === 0 ? '0 条' : `${page * 8 + 1}–${Math.min((page + 1) * 8, totalElements)} / 共 ${totalElements} 条`}</span><div><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>上一页</button><span>{page + 1} / {totalPages}</span><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>下一页</button></div></div></section>{selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}</div>{mobileDetailOpen && selected && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></section></div>}<section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>交付创建、会话认证、令牌散列、链接撤销、审计记录</span><em>已接通</em></li><li><time>下一阶段</time><span>私有 ZIP / Excel 水印副本和一次性下载票据</span><em>待实现</em></li></ol></section></section>
+}
+
+*/
 }
 
 /* Retired static-only management mock. The active route now uses AdminConsole and real API data. */
