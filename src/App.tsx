@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
 import entranceScene from './assets/yunyue-shop-entrance-v1.webp'
+import { BackgroundMusic, type BackgroundMusicHandle } from './components/BackgroundMusic'
 import { selectSignMessage } from './lib/selectSignMessage'
 import {
   archivePackageRelease,
@@ -82,6 +83,7 @@ function App() {
   const [route, setRoute] = useState<Route>(routeFromHash)
   const [entered, setEntered] = useState(hasEnteredShop)
   const [opening, setOpening] = useState(false)
+  const backgroundMusicRef = useRef<BackgroundMusicHandle>(null)
   const activePage = pageMeta[route.page]
   const isPrivateRoute = route.page === 'admin' || route.page === 'delivery'
 
@@ -96,6 +98,7 @@ function App() {
   }, [])
 
   function enterShop() {
+    void backgroundMusicRef.current?.startFromEntrance()
     if (route.page === 'not-found') {
       window.history.replaceState(null, '', '#home')
       setRoute({ page: 'home' })
@@ -113,6 +116,7 @@ function App() {
   }
 
   function leaveShop() {
+    backgroundMusicRef.current?.stop(true)
     try {
       window.sessionStorage.removeItem('yunyue-shop-entered')
     } catch {
@@ -126,35 +130,40 @@ function App() {
     setEntered(false)
   }
 
-  if (!isPrivateRoute && !entered) {
-    return <ShopEntrance opening={opening} onEnter={enterShop} />
-  }
-
   return (
-    <main className={route.page === 'admin' ? 'admin-shell' : 'shop-shell'}>
-      <aside className="wide-rail" aria-hidden="true"><span>{activePage.number}</span><i /><small>{activePage.label}</small></aside>
-      <header className={`site-header${route.page === 'admin' ? ' admin-site-header' : ''}`}>
-        <a className="brand" href="#home" aria-label="云月小铺"><img src={logo} alt="" /><span>云月小铺</span></a>
-        <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label={menuOpen ? 'メニューを閉じる' : 'メニューを開く'}><span /><span /><span /></button>
-        <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="小铺导航">
-          {route.page !== 'admin' && navItems.map(([id, label]) => <a className={route.page === id ? 'active' : ''} href={`#${id}`} key={id}>{label}</a>)}
-          {!isPrivateRoute && <button className="leave-shop" type="button" onClick={leaveShop}>掩门离去</button>}
-        </nav>
-      </header>
+    <>
+      <BackgroundMusic
+        ref={backgroundMusicRef}
+        visible={entered && !isPrivateRoute}
+        suspended={isPrivateRoute}
+      />
+      {!isPrivateRoute && !entered
+        ? <ShopEntrance opening={opening} onEnter={enterShop} />
+        : <main className={route.page === 'admin' ? 'admin-shell' : 'shop-shell'}>
+          <aside className="wide-rail" aria-hidden="true"><span>{activePage.number}</span><i /><small>{activePage.label}</small></aside>
+          <header className={`site-header${route.page === 'admin' ? ' admin-site-header' : ''}`}>
+            <a className="brand" href="#home" aria-label="云月小铺"><img src={logo} alt="" /><span>云月小铺</span></a>
+            <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label={menuOpen ? 'メニューを閉じる' : 'メニューを開く'}><span /><span /><span /></button>
+            <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="小铺导航">
+              {route.page !== 'admin' && navItems.map(([id, label]) => <a className={route.page === id ? 'active' : ''} href={`#${id}`} key={id}>{label}</a>)}
+              {!isPrivateRoute && <button className="leave-shop" type="button" onClick={leaveShop}>掩门离去</button>}
+            </nav>
+          </header>
 
-      {route.page === 'home' && <ShopHome />}
-      {route.page === 'tavern' && <Tavern />}
-      {route.page === 'library' && <Library />}
-      {route.page === 'workshop' && <Workshop />}
-      {route.page === 'pavilion' && <Pavilion />}
-      {route.page === 'road' && <CloudRoad />}
-      {route.page === 'courtyard' && <Courtyard />}
-      {route.page === 'not-found' && <ShopNotFound />}
-      {route.page === 'delivery' && <Delivery initialToken={route.token} />}
-      {route.page === 'admin' && <AdminConsole />}
+          {route.page === 'home' && <ShopHome />}
+          {route.page === 'tavern' && <Tavern />}
+          {route.page === 'library' && <Library />}
+          {route.page === 'workshop' && <Workshop />}
+          {route.page === 'pavilion' && <Pavilion />}
+          {route.page === 'road' && <CloudRoad />}
+          {route.page === 'courtyard' && <Courtyard />}
+          {route.page === 'not-found' && <ShopNotFound />}
+          {route.page === 'delivery' && <Delivery initialToken={route.token} />}
+          {route.page === 'admin' && <AdminConsole />}
 
-      {route.page !== 'admin' && <footer><a className="brand" href="#home"><img src={logo} alt="" /><span>云月小铺</span></a><p>云聚云散，月有圆缺。</p><small>店小二还在赶路，灯会一直留着。</small></footer>}
-    </main>
+          {route.page !== 'admin' && <footer><a className="brand" href="#home"><img src={logo} alt="" /><span>云月小铺</span></a><p>云聚云散，月有圆缺。</p><small>店小二还在赶路，灯会一直留着。</small></footer>}
+        </main>}
+    </>
   )
 }
 
@@ -164,7 +173,7 @@ const shopRooms = [
   { id: 'workshop', name: '百工坊', note: '项目、设计书与做过的作品', mark: '一件物' },
   { id: 'pavilion', name: '长亭', note: '音乐、摄影、旅行与远方', mark: '一程路' },
   { id: 'road', name: '云月路', note: '一部慢慢写下去的故事', mark: '一页纸' },
-  { id: 'courtyard', name: '后院', note: '工具、源码与留下的痕迹', mark: '一扇门' },
+  { id: 'courtyard', name: '后院', note: '门常年锁着，偶尔传来几声动静', mark: '一扇门' },
 ] as const
 
 const entrancePlaques = [
@@ -319,9 +328,8 @@ function CloudRoad() {
 }
 
 function Courtyard() {
-  return <section className="section room-section courtyard-section"><RoomHeading number="06" title="后院" description="前铺招待来客，后院留下工具、源码与做事的痕迹。" />
-    <div className="backyard-gate"><p>门没有上锁。</p><h3>若想看看这间小铺是怎样搭起来的，便从这里出去。</h3><a className="button outline" href="https://github.com/rin66-515" target="_blank" rel="noreferrer">推开后门</a></div>
-    <UnderRenovation room="后院工棚">更多工具和公开作品仍在整理，暂时不要被地上的木屑绊倒。</UnderRenovation>
+  return <section className="section room-section courtyard-section"><RoomHeading number="06" title="后院" description="前铺招待来客，后院暂不待客。至于里面有什么，小二也没拿到钥匙。" />
+    <div className="backyard-gate"><p>闲人止步</p><h3>门是掌柜锁的。<br />钥匙，大概也被他带去云游了。</h3><small>若实在好奇，不妨先去酒桌坐坐。<br />等他回来，再替你问问。</small></div>
   </section>
 }
 

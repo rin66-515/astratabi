@@ -6,6 +6,7 @@ backend
 dev-fixtures
 dist
 docs
+music-drafts
 node_modules
 *.tsbuildinfo
 .env

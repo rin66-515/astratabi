@@ -411,8 +411,6 @@ h1, h2, h3, p { margin-top: 0; }
 .backyard-gate { max-width: 900px; margin-inline: auto; padding: 55px; border: 1px solid rgba(31, 57, 46, .32); color: #eee5cf; background: repeating-linear-gradient(92deg, #18241d 0 68px, #1e2d24 69px 136px); box-shadow: 16px 18px 0 rgba(83, 73, 47, .13); }
 .backyard-gate > p { color: #d4b56d; font-size: 12px; letter-spacing: .15em; }
 .backyard-gate h3 { max-width: 650px; margin: 28px 0 38px; font: 500 clamp(23px, 3vw, 34px) / 1.7 'Shippori Mincho', serif; }
-.backyard-gate .button.outline { border-color: rgba(238, 229, 207, .6); color: #eee5cf; }
-.backyard-gate .button.outline:hover { color: #172019; background: #eee5cf; }
 .shop-not-found { display: grid; min-height: calc(100dvh - 160px); place-content: center; text-align: center; }
 .shop-not-found h2 { margin-bottom: 22px; font: 500 clamp(27px, 4vw, 46px) / 1.6 'Shippori Mincho', serif; }
 .shop-not-found > p:not(.eyebrow) { color: #66695f; font-size: 14px; line-height: 2; }

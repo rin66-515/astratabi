@@ -6,6 +6,7 @@ backend/target/
 .portal-data/
 backend/.portal-data/
 backend/.m2-repository/
+music-drafts/**/*.wav
 vite.config.js
 vite.config.d.ts
 .env
