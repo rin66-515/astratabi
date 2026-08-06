@@ -2,6 +2,12 @@
 
 「云月小铺」を世界观として育てる个人 IP 门户。公开侧使用 React + TypeScript + Vite，交付后台使用 Java 21 / Spring Boot / PostgreSQL。
 
+## 项目说明与后续计划
+
+当前实现范围、未完成边界、后续制造路线、运维发布要求和决策记录统一维护在 [docs/project-overview/README.md](docs/project-overview/README.md)。
+
+阅读这些说明时，以 `実装済`、`設計確定`、`設計提案`、`未実装` 和 `未試験` 区分实际完成情况，不能把规划或页面占位视为已完成机能。
+
 ## 本地一键启动（推荐）
 
 本地 Docker 同时运行 React 静态前端、Java 21 后端和 PostgreSQL；这不是正式服务器部署配置。
