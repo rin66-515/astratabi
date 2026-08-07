@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
 import entranceScene from './assets/yunyue-shop-entrance-v1.webp'
 import { BackgroundMusic, type BackgroundMusicHandle } from './components/BackgroundMusic'
@@ -408,9 +408,23 @@ function Delivery({ initialToken }: { initialToken?: string }) {
 function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () => Promise<void> }) {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [pasteNotice, setPasteNotice] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState('')
   const [result, setResult] = useState<CustomerPackageResult | null>(null)
+  const lengthValid = password.length >= 12 && password.length <= 64
+  const visibleAsciiValid = password.length > 0 && /^[\x21-\x7e]+$/.test(password)
+  const letterValid = /[A-Za-z]/.test(password)
+  const digitValid = /[0-9]/.test(password)
+  const confirmationMatches = confirmation.length > 0 && password === confirmation
+  const canSubmit = lengthValid && visibleAsciiValid && letterValid && digitValid && confirmationMatches && !submitting
+
+  function reportPaste(event: ClipboardEvent<HTMLInputElement>, fieldLabel: string) {
+    const pastedText = event.clipboardData.getData('text')
+    const hasUnsupportedCharacter = pastedText.length > 0 && !/^[\x21-\x7e]+$/.test(pastedText)
+    setPasteNotice(`${fieldLabel}已粘贴（${pastedText.length}位）${hasUnsupportedCharacter ? '，检测到空格、换行或全角字符。' : '。'}`)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -431,10 +445,26 @@ function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () 
   return <form className="delivery-password-form" onSubmit={submit}>
     <h4>客户资料密码设置</h4>
     <p>该密码仅用于本次生成，不会保存。请自行安全保管。</p>
-    <label>资料密码<input type="password" autoComplete="new-password" minLength={12} maxLength={64} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-    <label>资料密码（确认）<input type="password" autoComplete="new-password" minLength={12} maxLength={64} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></label>
-    <small>12～64 位半角字符，至少包含英文字母和数字。</small>
-    <button className="button primary" disabled={submitting || password !== confirmation} type="submit">{submitting ? '正在生成专属资料…' : '设置密码并生成资料'}</button>
+    <label htmlFor="document-password">资料密码</label>
+    <div className="password-input-row">
+      <input id="document-password" name="documentPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} minLength={12} maxLength={64} value={password} onChange={(event) => setPassword(event.target.value)} onPaste={(event) => reportPaste(event, '资料密码')} aria-describedby="document-password-rules password-paste-status" aria-invalid={password.length > 0 && (!lengthValid || !visibleAsciiValid || !letterValid || !digitValid)} required />
+      <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? '隐藏资料密码' : '显示资料密码'} aria-pressed={showPassword}>{showPassword ? '隐藏' : '显示'}</button>
+    </div>
+    <label htmlFor="document-password-confirmation">资料密码（确认）</label>
+    <div className="password-input-row">
+      <input id="document-password-confirmation" name="documentPasswordConfirmation" type={showPassword ? 'text' : 'password'} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} minLength={12} maxLength={64} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} onPaste={(event) => reportPaste(event, '确认密码')} aria-describedby="document-password-rules password-paste-status" aria-invalid={confirmation.length > 0 && !confirmationMatches} required />
+      <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? '隐藏确认密码' : '显示确认密码'} aria-pressed={showPassword}>{showPassword ? '隐藏' : '显示'}</button>
+    </div>
+    <small id="document-password-rules">不会自动删除或转换字符。请确认复制内容中没有空格、换行或全角字符。</small>
+    <p id="password-paste-status" className="password-paste-status" aria-live="polite">{pasteNotice}</p>
+    <ul className="password-check-list" aria-label="密码规则确认">
+      <li className={lengthValid ? 'is-valid' : 'is-pending'}>12～64位</li>
+      <li className={visibleAsciiValid ? 'is-valid' : password.length > 0 ? 'is-invalid' : 'is-pending'}>仅半角字符，不含空格或换行</li>
+      <li className={letterValid ? 'is-valid' : 'is-pending'}>至少1个英文字母</li>
+      <li className={digitValid ? 'is-valid' : 'is-pending'}>至少1个数字</li>
+      <li className={confirmationMatches ? 'is-valid' : confirmation.length > 0 ? 'is-invalid' : 'is-pending'}>两次输入一致</li>
+    </ul>
+    <button className="button primary" disabled={!canSubmit} type="submit">{submitting ? '正在生成专属资料…' : '设置密码并生成资料'}</button>
     {notice && <p className="download-notice" role="alert">{notice}</p>}
     {result && <div className="download-notice"><p>专属资料已生成。请先保存以下 ASRAY 开通信息。</p>{result.asrayActivationUrl && <p>ASRAY 专属账号：{result.asrayUserId}　<a href={result.asrayActivationUrl}>设置登录密码</a></p>}<button className="button outline" type="button" onClick={() => void onReady()}>已保存，继续下载</button></div>}
   </form>

@@ -360,9 +360,21 @@ h1, h2, h3, p { margin-top: 0; }
 .download-notice { margin: 17px 0 0; padding: 13px 15px; color: #4a5d54; background: #edf3ec; font-size: 12px; line-height: 1.8; }
 .delivery-password-form { display: grid; gap: 12px; margin: 20px 0; padding: 20px; border: 1px solid var(--line); background: var(--mist); }
 .delivery-password-form h4, .delivery-password-form p { margin: 0; }
-.delivery-password-form label { display: grid; gap: 6px; font-size: 12px; }
+.delivery-password-form label { font-size: 12px; }
 .delivery-password-form input { padding: 12px 13px; border: 1px solid var(--line); background: var(--paper); font: 12px 'DM Mono', monospace; }
 .delivery-password-form small { color: #666b7e; line-height: 1.7; }
+.password-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.password-input-row input { width: 100%; min-width: 0; }
+.password-input-row input[aria-invalid="true"] { border-color: #a65d56; outline-color: #a65d56; }
+.password-input-row button { min-width: 58px; padding: 8px 11px; border: 1px solid var(--line); color: #40594d; background: var(--paper); font-size: 11px; }
+.password-paste-status { min-height: 1.7em; color: #596b62; font-size: 11px; }
+.password-check-list { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.password-check-list li { padding: 5px 8px; border: 1px solid var(--line); color: #74798a; background: var(--paper); font-size: 10px; }
+.password-check-list li::before { content: "○"; margin-right: 5px; }
+.password-check-list li.is-valid { border-color: #789b87; color: #315b43; background: #edf4ee; }
+.password-check-list li.is-valid::before { content: "✓"; }
+.password-check-list li.is-invalid { border-color: #bd7b74; color: #8a3e39; background: #f7eae8; }
+.password-check-list li.is-invalid::before { content: "!"; }
 .preview-title { display: flex; justify-content: space-between; color: #70768b; font: 10px 'DM Mono', monospace; }
 .preview-title button { border: 0; color: #70768b; background: none; }
 .delivery-preview h3 { margin: 22px 0; font-size: 20px; }
