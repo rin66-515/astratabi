@@ -39,7 +39,8 @@ class PackageReleaseServiceTest {
                 "http://127.0.0.1:18100",
                 new PortalProperties.Bootstrap("admin-001", ""),
                 new PortalProperties.Security("test-pepper", false, 15, 5),
-                new PortalProperties.PackageStorage(root.toString(), "ASRAY_COMPLETE", 10_000_000, 100, 50_000_000));
+                new PortalProperties.PackageStorage(root.toString(), "ASRAY_COMPLETE", 10_000_000, 100, 50_000_000),
+                new PortalProperties.Asray(false, "http://asray", "client", "secret", ""));
         service = new PackageReleaseService(repository, auditService, properties);
         when(repository.findByFileName(any())).thenReturn(Optional.empty());
         when(repository.findByProjectCodeAndVersionAndReleaseDate(any(), any(), any())).thenReturn(Optional.empty());
@@ -78,7 +79,7 @@ class PackageReleaseServiceTest {
         byte[] zip = zip("documents/README.txt", "simulation package");
         String sha256 = sha256(zip);
         PortalPackageRelease existing = PortalPackageRelease.create(
-                "ASRAY", "ASRAY_COMPLETE", "0.0.0", java.time.LocalDate.of(2026, 8, 1), fileName,
+                "ASRAY", "ASRAY_COMPLETE", "DEMO_FULL", "0.0.0", java.time.LocalDate.of(2026, 8, 1), fileName,
                 "packages/asray/existing.zip", "packages/asray/existing.zip.sha256", sha256, zip.length, "admin-001");
         when(repository.findByFileName(fileName)).thenReturn(Optional.of(existing));
 

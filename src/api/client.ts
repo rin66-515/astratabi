@@ -17,7 +17,7 @@ export type DeliverySummary = {
 
 export type DeliveryLookup =
   | { status: 'active'; delivery: DeliverySummary }
-  | { status: 'preparing' | 'expired'; delivery: DeliverySummary }
+  | { status: 'password-required' | 'expired'; delivery: DeliverySummary }
   | { status: 'not-found' }
 
 export type AdminSession = { loginId: string; authenticated: boolean }
@@ -29,6 +29,7 @@ export type PackageRelease = {
   id: string
   projectCode: string
   baseName: string
+  productId: string
   version: string
   releaseDate: string
   fileName: string
@@ -109,7 +110,7 @@ function toDeliverySummary(payload: PublicDeliveryPayload): DeliverySummary {
 }
 
 type PublicDeliveryPayload = {
-  state: 'ACTIVE' | 'PREPARING' | 'EXPIRED'
+  state: 'ACTIVE' | 'PASSWORD_REQUIRED' | 'EXPIRED'
   projectName: string
   recipientLabel: string
   deliveryNumber: string
@@ -124,7 +125,7 @@ export async function getDeliveryByToken(token: string): Promise<DeliveryLookup>
     const payload = await request<PublicDeliveryPayload>(`/api/v1/deliveries/${encodeURIComponent(token)}`)
     const delivery = toDeliverySummary(payload)
     if (payload.state === 'ACTIVE') return { status: 'active', delivery }
-    if (payload.state === 'PREPARING') return { status: 'preparing', delivery }
+    if (payload.state === 'PASSWORD_REQUIRED') return { status: 'password-required', delivery }
     return { status: 'expired', delivery }
   } catch (error) {
     if ((error as ApiError).status === 404) return { status: 'not-found' }
@@ -134,6 +135,23 @@ export async function getDeliveryByToken(token: string): Promise<DeliveryLookup>
 
 export function requestDownloadTicket(token: string) {
   return request<{ downloadUrl: string; remainingDownloads: number }>(`/api/v1/deliveries/${encodeURIComponent(token)}/download-tickets`, { method: 'POST' })
+}
+
+export type CustomerPackageResult = {
+  state: 'READY'
+  fileName: string
+  sha256: string
+  encryptedWorkbookCount: number
+  asrayUserId: string | null
+  asrayActivationUrl: string | null
+}
+
+export function setDocumentPassword(token: string, password: string, passwordConfirmation: string) {
+  return request<CustomerPackageResult>(`/api/v1/deliveries/${encodeURIComponent(token)}/document-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, passwordConfirmation }),
+  })
 }
 
 export function getAdminSession() {

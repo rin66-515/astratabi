@@ -134,7 +134,7 @@ public class PackageReleaseService {
                 Files.writeString(finalChecksum, actualSha256 + "  " + fileName + System.lineSeparator(),
                         StandardCharsets.US_ASCII, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
                 PortalPackageRelease saved = repository.saveAndFlush(PortalPackageRelease.create(
-                        PROJECT_CODE, parts.baseName(), parts.version(), parts.releaseDate(), fileName,
+                        PROJECT_CODE, parts.baseName(), productId(parts.baseName()), parts.version(), parts.releaseDate(), fileName,
                         archiveKey, checksumKey, actualSha256, Files.size(finalArchive), actorId));
                 auditService.record("ADMIN", actorId, "PACKAGE_RELEASE_UPLOADED", "PACKAGE_RELEASE", saved.id().toString(), null,
                         "{\"fileName\":\"" + fileName + "\",\"sha256\":\"" + actualSha256 + "\"}");
@@ -168,11 +168,14 @@ public class PackageReleaseService {
     }
 
     private FilenameParts parseFileName(String fileName) {
-        String configuredBaseName = properties.packageStorage().allowedBaseName();
-        Pattern pattern = Pattern.compile("^(" + Pattern.quote(configuredBaseName) + ")_v(\\d+\\.\\d+\\.\\d+)_(\\d{8})\\.zip$");
+        List<String> configuredBaseNames = List.of(properties.packageStorage().allowedBaseName().split(","))
+                .stream().map(String::trim).filter(value -> !value.isBlank()).toList();
+        String baseNamePattern = configuredBaseNames.stream().map(Pattern::quote)
+                .collect(java.util.stream.Collectors.joining("|"));
+        Pattern pattern = Pattern.compile("^(" + baseNamePattern + ")_v(\\d+\\.\\d+\\.\\d+)_(\\d{8})\\.zip$");
         Matcher matcher = pattern.matcher(fileName);
         if (!matcher.matches()) {
-            throw badRequest("PACKAGE_FILE_NAME_INVALID", "ZIP 文件名必须符合 " + configuredBaseName + "_v1.0.0_YYYYMMDD.zip。" );
+            throw badRequest("PACKAGE_FILE_NAME_INVALID", "ZIP 文件名必须符合已登记商品名_v1.0.0_YYYYMMDD.zip。" );
         }
         try {
             return new FilenameParts(matcher.group(1), matcher.group(2), LocalDate.parse(matcher.group(3), DateTimeFormatter.BASIC_ISO_DATE));
@@ -275,6 +278,25 @@ public class PackageReleaseService {
         return Path.of(properties.packageStorage().root()).toAbsolutePath().normalize();
     }
 
+    public Path masterArchivePath(PortalPackageRelease release) {
+        Path path = resolveStorageKey(storageRoot(), release.storageKey());
+        if (!Files.isRegularFile(path)) {
+            throw new ApiException(HttpStatus.CONFLICT, "PACKAGE_MASTER_MISSING", "母版资料包文件不存在。");
+        }
+        return path;
+    }
+
+    private String productId(String baseName) {
+        return switch (baseName) {
+            case "ASRAY_COMPLETE" -> "DEMO_FULL";
+            case "ASRAY_DOCS_COMPLETE", "ASRAY_DESIGN_EXAMPLES",
+                    "ASRAY_REQUIREMENTS_COMMUNICATION", "ASRAY_INCIDENT_BUG_REPORT" -> "DEMO_BASIC";
+            case "ASRAY_TEST_SPEC_EVIDENCE" -> "DEMO_TEST";
+            case "ASRAY_PM_RELEASE_OPERATIONS" -> "DEMO_MANAGEMENT";
+            default -> throw badRequest("PACKAGE_PRODUCT_UNSUPPORTED", "该资料包尚未配置商品编号。");
+        };
+    }
+
     private Path resolveStorageKey(Path storageRoot, String storageKey) {
         Path path = storageRoot.resolve(storageKey.replace('/', java.io.File.separatorChar)).normalize();
         if (!path.startsWith(storageRoot)) {
@@ -334,12 +356,12 @@ public class PackageReleaseService {
     public record UploadResponse(PackageReleaseResponse release, boolean duplicate) {
     }
 
-    public record PackageReleaseResponse(UUID id, String projectCode, String baseName, String version,
+    public record PackageReleaseResponse(UUID id, String projectCode, String baseName, String productId, String version,
                                          LocalDate releaseDate, String fileName, String sha256, long fileSize,
                                          PackageReleaseStatus status, String uploadedBy, Instant uploadedAt,
                                          Instant archivedAt) {
         static PackageReleaseResponse from(PortalPackageRelease release) {
-            return new PackageReleaseResponse(release.id(), release.projectCode(), release.baseName(), release.version(),
+            return new PackageReleaseResponse(release.id(), release.projectCode(), release.baseName(), release.productId(), release.version(),
                     release.releaseDate(), release.fileName(), release.sha256(), release.fileSize(), release.status(),
                     release.uploadedBy(), release.uploadedAt(), release.archivedAt());
         }

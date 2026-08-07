@@ -18,9 +18,11 @@ import {
   logout,
   requestDownloadTicket,
   revokeDelivery,
+  setDocumentPassword,
   uploadPackageRelease,
   type AdminDelivery,
   type ApiError,
+  type CustomerPackageResult,
   type DeliveryEvent,
   type DeliveryLookup,
   type PackageRelease,
@@ -400,7 +402,42 @@ function Delivery({ initialToken }: { initialToken?: string }) {
     }
   }
 
-  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>专属取件处</h2><p>持有店小二发出的专属链接，即可在这里确认交付内容。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">取件凭证</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="输入专属链接中的凭证" /><button className="button outline" type="submit">确认交付内容</button></div><small>通过专属链接进入时，会自动显示对应的交付信息。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">{slowLoading ? '酒快温好了。' : '掌柜正在温酒……'}</p>}{loadFailed && <p className="delivery-state error" role="alert">风太大，灯晃了一下。稍后再试。</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">没有找到这份交付。请确认店小二发给你的专属链接是否完整。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>专属交付信息</span><span>{lookup.status === 'active' ? '可以取件' : lookup.status === 'preparing' ? '仍在准备' : '有效期已结束'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">交付对象：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>交付管理编号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有效期</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>剩余下载次数</dt><dd>{lookup.delivery.remainingDownloads} 次</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>下载 ZIP</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
+  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>专属取件处</h2><p>持有店小二发出的专属链接，即可在这里确认交付内容。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">取件凭证</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="输入专属链接中的凭证" /><button className="button outline" type="submit">确认交付内容</button></div><small>通过专属链接进入时，会自动显示对应的交付信息。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">{slowLoading ? '酒快温好了。' : '掌柜正在温酒……'}</p>}{loadFailed && <p className="delivery-state error" role="alert">风太大，灯晃了一下。稍后再试。</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">没有找到这份交付。请确认店小二发给你的专属链接是否完整。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>专属交付信息</span><span>{lookup.status === 'active' ? '可以取件' : lookup.status === 'password-required' ? '密码待设置' : '有效期已结束'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">交付对象：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>交付管理编号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有效期</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>剩余下载次数</dt><dd>{lookup.delivery.remainingDownloads} 次</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'password-required' && initialToken && <DocumentPasswordSetup token={initialToken} onReady={async () => setLookup(await getDeliveryByToken(initialToken))} />}{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>下载 ZIP</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
+}
+
+function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () => Promise<void> }) {
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [result, setResult] = useState<CustomerPackageResult | null>(null)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSubmitting(true)
+    setNotice('')
+    try {
+      const generated = await setDocumentPassword(token, password, confirmation)
+      setResult(generated)
+      setPassword('')
+      setConfirmation('')
+    } catch (error) {
+      setNotice((error as ApiError).message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return <form className="delivery-password-form" onSubmit={submit}>
+    <h4>客户资料密码设置</h4>
+    <p>该密码仅用于本次生成，不会保存。请自行安全保管。</p>
+    <label>资料密码<input type="password" autoComplete="new-password" minLength={12} maxLength={64} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+    <label>资料密码（确认）<input type="password" autoComplete="new-password" minLength={12} maxLength={64} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></label>
+    <small>12～64 位半角字符，至少包含英文字母和数字。</small>
+    <button className="button primary" disabled={submitting || password !== confirmation} type="submit">{submitting ? '正在生成专属资料…' : '设置密码并生成资料'}</button>
+    {notice && <p className="download-notice" role="alert">{notice}</p>}
+    {result && <div className="download-notice"><p>专属资料已生成。请先保存以下 ASRAY 开通信息。</p>{result.asrayActivationUrl && <p>ASRAY 专属账号：{result.asrayUserId}　<a href={result.asrayActivationUrl}>设置登录密码</a></p>}<button className="button outline" type="button" onClick={() => void onReady()}>已保存，继续下载</button></div>}
+  </form>
 }
 
 const statusLabels: Record<DeliveryStatus, string> = { DRAFT: '草稿', PREPARING: '准备中', ISSUED: '已发放', EXPIRED: '已过期', REVOKED: '已停用', CANCELLED: '已取消' }
@@ -581,7 +618,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   return <section className="section admin-preview-section">
     <div className="section-heading">
       <p className="eyebrow">运营管理</p><h2>交付管理台</h2>
-      <p>当前数据来自本机 PostgreSQL。母版 ZIP 已进入不可变版本管理；客户水印副本和真实下载仍在后续阶段。</p>
+      <p>当前数据来自本机 PostgreSQL。母版 ZIP、客户专属 Excel 加密、副本哈希与真实下载均由服务端管理。</p>
       <button className="text-button" type="button" onClick={signOut}>退出管理台 →</button>
     </div>
     <div className="admin-summary">
@@ -620,7 +657,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
           <label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
           <label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label>
         </div>
-        <div className="admin-form-actions"><p>该记录会固定引用所选母版版本。当前仅生成准备中链接，不会开放真实文件下载。</p><button className="button primary" type="submit" disabled={!packageReleaseId}>生成专属链接</button></div>
+        <div className="admin-form-actions"><p>该记录固定引用所选母版版本。客户设置资料密码且 ASRAY 账号开通成功后，才开放真实下载。</p><button className="button primary" type="submit" disabled={!packageReleaseId}>生成专属链接</button></div>
       </form>
       {issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><a href={issuedLink}>{issuedLink}</a></div>}
     </section>
@@ -635,7 +672,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       {selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}
     </div>
     {mobileDetailOpen && selected && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></section></div>}
-    <section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>母版 ZIP 校验、不可变版本登记、交付版本固定、认证与审计</span><em>已接通</em></li><li><time>下一阶段</time><span>客户专属 Excel 水印副本、ZIP 生成与一次性下载票据</span><em>待实现</em></li></ol></section>
+    <section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>母版校验、客户专属 Excel 加密、ZIP、ASRAY 开户与一次性下载票据</span><em>已接通</em></li><li><time>正式环境</time><span>TLS、正式密钥、备份与监控</span><em>未実施</em></li></ol></section>
   </section>
 
   /* Previous one-line layout retained temporarily until the new layout compiles.

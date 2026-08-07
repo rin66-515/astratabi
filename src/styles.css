@@ -358,6 +358,11 @@ h1, h2, h3, p { margin-top: 0; }
 .delivery-state.error { color: #804948; background: #f5e8e5; }
 .watermark-note { color: #666d80; font-size: 12px; }
 .download-notice { margin: 17px 0 0; padding: 13px 15px; color: #4a5d54; background: #edf3ec; font-size: 12px; line-height: 1.8; }
+.delivery-password-form { display: grid; gap: 12px; margin: 20px 0; padding: 20px; border: 1px solid var(--line); background: var(--mist); }
+.delivery-password-form h4, .delivery-password-form p { margin: 0; }
+.delivery-password-form label { display: grid; gap: 6px; font-size: 12px; }
+.delivery-password-form input { padding: 12px 13px; border: 1px solid var(--line); background: var(--paper); font: 12px 'DM Mono', monospace; }
+.delivery-password-form small { color: #666b7e; line-height: 1.7; }
 .preview-title { display: flex; justify-content: space-between; color: #70768b; font: 10px 'DM Mono', monospace; }
 .preview-title button { border: 0; color: #70768b; background: none; }
 .delivery-preview h3 { margin: 22px 0; font-size: 20px; }

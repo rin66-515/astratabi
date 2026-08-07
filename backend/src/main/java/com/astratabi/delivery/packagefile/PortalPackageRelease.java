@@ -22,6 +22,8 @@ public class PortalPackageRelease {
     String projectCode;
     @Column(name = "base_name", nullable = false, length = 120)
     String baseName;
+    @Column(name = "product_id", nullable = false, length = 80)
+    String productId;
     @Column(nullable = false, length = 32)
     String version;
     @Column(name = "release_date", nullable = false)
@@ -49,7 +51,7 @@ public class PortalPackageRelease {
     protected PortalPackageRelease() {
     }
 
-    public static PortalPackageRelease create(String projectCode, String baseName, String version,
+    public static PortalPackageRelease create(String projectCode, String baseName, String productId, String version,
                                                LocalDate releaseDate, String fileName, String storageKey,
                                                String checksumStorageKey, String sha256, long fileSize,
                                                String uploadedBy) {
@@ -57,6 +59,7 @@ public class PortalPackageRelease {
         release.id = UUID.randomUUID();
         release.projectCode = projectCode;
         release.baseName = baseName;
+        release.productId = productId;
         release.version = version;
         release.releaseDate = releaseDate;
         release.fileName = fileName;
@@ -81,6 +84,7 @@ public class PortalPackageRelease {
     public UUID id() { return id; }
     public String projectCode() { return projectCode; }
     public String baseName() { return baseName; }
+    public String productId() { return productId; }
     public String version() { return version; }
     public LocalDate releaseDate() { return releaseDate; }
     public String fileName() { return fileName; }

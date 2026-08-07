@@ -46,4 +46,18 @@ public class PortalDownloadTicket {
         ticket.createdAt = Instant.now();
         return ticket;
     }
+
+    public boolean availableAt(Instant now) {
+        return usedAt == null && expiresAt.isAfter(now);
+    }
+
+    public void markUsed(Instant now) {
+        if (!availableAt(now)) {
+            throw new IllegalStateException("Download ticket is not available");
+        }
+        usedAt = now;
+    }
+
+    public PortalDelivery delivery() { return delivery; }
+    public PortalDeliveryToken token() { return token; }
 }

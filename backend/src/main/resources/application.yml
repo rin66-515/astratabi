@@ -31,10 +31,16 @@ portal:
     max-failed-logins: 5
   package-storage:
     root: ${PORTAL_PACKAGE_STORAGE_ROOT:.portal-data}
-    allowed-base-name: ${PORTAL_PACKAGE_BASE_NAME:ASRAY_COMPLETE}
+    allowed-base-name: ${PORTAL_PACKAGE_BASE_NAME:ASRAY_COMPLETE,ASRAY_DOCS_COMPLETE,ASRAY_DESIGN_EXAMPLES,ASRAY_REQUIREMENTS_COMMUNICATION,ASRAY_INCIDENT_BUG_REPORT,ASRAY_TEST_SPEC_EVIDENCE,ASRAY_PM_RELEASE_OPERATIONS}
     max-upload-bytes: ${PORTAL_PACKAGE_MAX_UPLOAD_BYTES:209715200}
     max-entry-count: 10000
     max-uncompressed-bytes: 1073741824
+  asray:
+    enabled: ${PORTAL_ASRAY_ENABLED:false}
+    base-url: ${PORTAL_ASRAY_BASE_URL:http://asray-api:8080}
+    client-id: ${PORTAL_ASRAY_CLIENT_ID:astratabi-local}
+    hmac-secret: ${PORTAL_ASRAY_HMAC_SECRET:local-only-hmac-secret-change-before-production}
+    activation-url-encryption-key: ${PORTAL_ASRAY_ACTIVATION_URL_KEY:}
 
 management:
   endpoints:
