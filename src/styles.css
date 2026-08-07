@@ -468,7 +468,11 @@ h1, h2, h3, p { margin-top: 0; }
 .admin-issued-link { display: grid; gap: 10px; margin-top: 20px; padding: 17px; border: 1px solid rgba(230, 196, 117, .48); color: #e7edff; background: rgba(41, 71, 66, .45); }
 .admin-issued-link p { display: grid; gap: 4px; margin: 0; font-size: 12px; }
 .admin-issued-link p span, .admin-issued-link small { color: #c6cfdf; font-size: 11px; }
-.admin-issued-link a { overflow: hidden; color: #e7c77e; font: 11px 'DM Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+.admin-issued-link-value { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.admin-issued-link-value input { min-width: 0; padding: 9px 10px; border: 1px solid rgba(255, 255, 255, .18); outline-color: #e7c77e; color: #e7c77e; background: rgba(13, 23, 36, .72); font: 11px 'DM Mono', monospace; }
+.admin-issued-link-actions { display: flex; gap: 8px; }
+.admin-issued-link-actions button, .admin-issued-link-actions a { display: inline-flex; align-items: center; min-height: 36px; padding: 8px 11px; border: 1px solid rgba(231, 199, 126, .48); color: #e7c77e; background: transparent; font-size: 11px; text-decoration: none; white-space: nowrap; }
+.admin-issued-link-actions button:hover, .admin-issued-link-actions a:hover { border-color: #f3dc9d; color: #f3dc9d; }
 .admin-management { display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: start; gap: 22px; max-width: 1180px; margin: 22px auto 0; }
 .admin-filters { display: flex; gap: 12px; margin-bottom: 18px; }
 .admin-filters label { display: grid; gap: 7px; color: #bdc6dc; font-size: 11px; }
@@ -550,6 +554,12 @@ footer small { margin-left: auto; font: 10px 'DM Mono', monospace; }
 @media (max-width: 1100px) {
   .admin-management { grid-template-columns: 1fr; }
   .admin-detail { position: static; }
+  .admin-management > .admin-detail { display: none; }
+  .mobile-detail-layer { position: fixed; inset: 0; z-index: 50; display: block; }
+  .mobile-detail-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(5, 8, 17, .65); }
+  .mobile-detail-sheet { position: absolute; right: 0; bottom: 0; left: 0; max-height: min(78dvh, 720px); overflow-y: auto; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 20px 20px 0 0; background: #171b30; box-shadow: 0 -12px 36px rgba(0, 0, 0, .35); }
+  .mobile-detail-handle { width: 42px; height: 4px; margin: -8px auto 16px; border-radius: 8px; background: rgba(255, 255, 255, .32); }
+  .mobile-detail-close { position: absolute; top: 18px; right: 22px; border: 0; color: #dce4f4; background: transparent; font-size: 12px; }
   .admin-form-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-package-upload { grid-template-columns: 1fr 1fr; }
   .admin-package-upload .button { grid-column: 1 / -1; }
@@ -603,6 +613,8 @@ footer small { margin-left: auto; font: 10px 'DM Mono', monospace; }
   .admin-form-actions, .admin-audit { display: grid; }
   .admin-audit li { grid-template-columns: 1fr; gap: 5px; }
   .admin-filters, .admin-pagination { align-items: stretch; flex-direction: column; }
+  .admin-issued-link-value { grid-template-columns: 1fr; }
+  .admin-issued-link-actions { flex-wrap: wrap; }
   .admin-filters label { width: 100%; }
   .admin-detail-actions { grid-template-columns: 1fr; }
   .admin-table-wrap { display: none; }
@@ -612,12 +624,6 @@ footer small { margin-left: auto; font: 10px 'DM Mono', monospace; }
   .admin-mobile-record small { grid-column: 1 / -1; color: #e7c77e; font: 10px 'DM Mono', monospace; }
   .admin-mobile-record div { display: flex; grid-column: 1 / -1; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .14); color: #b7c1d7; font-size: 11px; }
   .admin-mobile-record:active { background: rgba(214, 181, 105, .16); }
-  .admin-management > .admin-detail { display: none; }
-  .mobile-detail-layer { position: fixed; inset: 0; z-index: 50; display: block; }
-  .mobile-detail-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(5, 8, 17, .65); }
-  .mobile-detail-sheet { position: absolute; right: 0; bottom: 0; left: 0; max-height: min(78dvh, 720px); overflow-y: auto; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 20px 20px 0 0; background: #171b30; box-shadow: 0 -12px 36px rgba(0, 0, 0, .35); }
-  .mobile-detail-handle { width: 42px; height: 4px; margin: -8px auto 16px; border-radius: 8px; background: rgba(255, 255, 255, .32); }
-  .mobile-detail-close { position: absolute; top: 18px; right: 22px; border: 0; color: #dce4f4; background: transparent; font-size: 12px; }
   footer { flex-wrap: wrap; }
   footer { gap: 15px; }
   footer small { width: 100%; margin-left: 0; }

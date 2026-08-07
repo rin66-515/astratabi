@@ -1,6 +1,6 @@
 # 当前实现说明
 
-基准日：2026-08-07
+基准日：2026-08-08
 
 判定依据：当前 `main` 分支的应用代码、Flyway 迁移、Docker Compose 与自动测试。
 
@@ -74,10 +74,12 @@
 | 客户水印/加密 | 每个Sheet页脚写入客户编号/交付编号；XLSX Agile加密 | `実装済` |
 | 交付 ZIP/摘要 | 客户专属ZIP、SHA-256、生成状态与失败重试 | `実装済` |
 | 文件传输 | `GET /api/v1/download-tickets/{ticket}`受控流式下载 | `実装済` |
-| ASRAY账号 | HMAC幂等开通、一次性激活、统一训练权限、单会话 | `実装済` |
+| ASRAY账号 | HMAC幂等开通、一次性激活、商品别权限、共用训练案件、单会话 | `実装済` |
 | 完整闭环 | PREPARING/WAITING_PASSWORD → READY/ISSUED → 实际下载 | `実装済` |
 
 以上闭环已在本地Docker以模拟客户完成跨系统验证。正式服务器、正式客户、TLS与生产UAT仍未实施，不得把本地测试结果表述为生产发布完成。
+
+ASRAY权限由受控商品ID映射：`DEMO_BASIC`提供共通业务，`DEMO_TEST`追加本人测试证迹，`DEMO_MANAGEMENT`追加本人计划与本人Report，`DEMO_FULL`提供三类训练权限。外部账号始终为`MEMBER`，不会取得ASRAY内部`MANAGER`或`ADMIN`。ASRAY服务端会重新计算商品权限并限制为本人数据与共用训练案件`EXT-TRAINING`；承认、真实案件管理、预测、系统管理和Master维护不对外部账号开放。
 
 ## 6. 数据库现状
 
@@ -103,7 +105,7 @@
 
 ## 7. 自动测试现状
 
-本期新增客户包单体测试6件，覆盖密码校验、无密码/错误密码拒绝、正确密码解密、逐Sheet水印、重复说明文件和母版不可变。既有`PackageReleaseService`测试继续覆盖正常上传、摘要不一致、幂等重试和不安全ZIP路径拒绝。
+本期后端全量测试9件通过，除客户包密码、水印、加密和母版不可变外，追加覆盖商品ID至ASRAY Entitlement的转换、请求体、响应照合及Provisioning状态的明示保存。既有`PackageReleaseService`测试继续覆盖正常上传、摘要不一致、幂等重试和不安全ZIP路径拒绝。
 
 以下测试尚不充分或尚不存在：
 

@@ -75,7 +75,16 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 - Event ID保持幂等；调用失败不破坏已经生成的客户文件，但标记`FAILED`供管理员重试
 - Activation URL使用AES-GCM和独立环境密钥短期加密保存；页面只在有效交付Token下显示
 
-本期联动将母版Release的`product_id`原样发送，并统一赋予`ASRAY_SIMULATION_ACCESS`。商品细分权限尚未投入运营；追加细分时必须先补正双方权限矩阵并完成回归测试。
+本期联动将母版Release的`product_id`原样发送，并按以下矩阵计算商品权限。ASRAY侧也按相同矩阵重新计算；未知商品或矩阵不一致时不创建账号。
+
+| product_id | 商品权限 | 训练范围 |
+|---|---|---|
+| DEMO_BASIC | SIM_CORE_WORKFLOW | 基本操作 |
+| DEMO_TEST | SIM_CORE_WORKFLOW、SIM_TEST_EVIDENCE | 基本操作、本人测试证迹・帐票 |
+| DEMO_MANAGEMENT | SIM_CORE_WORKFLOW、SIM_MANAGEMENT_OPERATIONS | 基本操作、本人计划・帐票 |
+| DEMO_FULL | 上述全部 | 外部账号用全训练范围 |
+
+外部账号在ASRAY中始终使用`MEMBER`角色。承认、案件管理、予实管理、用户・组织・主数据管理不作为商品权益开放，避免共享训练案件中的跨客户数据访问。`SIM_CORE_WORKFLOW`付与账号由ASRAY自动、幂等地加入共用训练案件`EXT-TRAINING`。
 
 ## 8. 验收条件
 

@@ -536,6 +536,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [expiresAt, setExpiresAt] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
   const [downloadLimit, setDownloadLimit] = useState('3')
   const [issuedLink, setIssuedLink] = useState('')
+  const [linkCopyNotice, setLinkCopyNotice] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<DeliveryStatus | ''>('')
   const [page, setPage] = useState(0)
@@ -543,6 +544,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [totalElements, setTotalElements] = useState(0)
   const [notice, setNotice] = useState('')
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
+  const issuedLinkInputRef = useRef<HTMLInputElement>(null)
 
   const selected = records.find((record) => record.id === selectedId) ?? records[0]
 
@@ -575,6 +577,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   async function submitDelivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setNotice('')
+    setLinkCopyNotice('')
     try {
       if (!packageReleaseId) throw new Error('请先上传并选择一个有效资料包版本。')
       const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageReleaseId, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
@@ -629,6 +632,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       if (action === 'reissue') {
         const issued = await issueDelivery(selected.id, true)
         setIssuedLink(issued.deliveryLink)
+        setLinkCopyNotice('')
       }
       if (action === 'revoke') await revokeDelivery(selected.id)
       setNotice(action === 'extend' ? '已将有效期延长 30 日。' : action === 'reissue' ? '已撤销旧令牌并生成新链接。' : '已停止该专属链接。')
@@ -641,6 +645,24 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   async function signOut() {
     await logout().catch(() => undefined)
     onLoggedOut()
+  }
+
+  async function copyIssuedLink() {
+    if (!issuedLink) return
+    try {
+      await navigator.clipboard.writeText(issuedLink)
+      setLinkCopyNotice('专属链接已复制。')
+    } catch {
+      issuedLinkInputRef.current?.focus()
+      issuedLinkInputRef.current?.select()
+      setLinkCopyNotice('无法自动复制，已选中链接，请按 Ctrl+C 复制。')
+    }
+  }
+
+  function openDeliveryDetails(recordId: string) {
+    setSelectedId(recordId)
+    setNotice('')
+    if (window.matchMedia('(max-width: 1100px)').matches) setMobileDetailOpen(true)
   }
 
   const activeReleases = packageReleases.filter((release) => release.status === 'ACTIVE')
@@ -689,14 +711,14 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
         </div>
         <div className="admin-form-actions"><p>该记录固定引用所选母版版本。客户设置资料密码且 ASRAY 账号开通成功后，才开放真实下载。</p><button className="button primary" type="submit" disabled={!packageReleaseId}>生成专属链接</button></div>
       </form>
-      {issuedLink && <div className="admin-issued-link" role="status"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><a href={issuedLink}>{issuedLink}</a></div>}
+      {issuedLink && <div className="admin-issued-link"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><div className="admin-issued-link-value"><input ref={issuedLinkInputRef} aria-label="客户专属链接" readOnly value={issuedLink} onFocus={(event) => event.currentTarget.select()} /><div className="admin-issued-link-actions"><button type="button" onClick={() => void copyIssuedLink()}>复制链接</button><a href={issuedLink} target="_blank" rel="noreferrer">新窗口打开</a></div></div>{linkCopyNotice && <small role="status">{linkCopyNotice}</small>}</div>}
     </section>
     <div className="admin-management">
       <section className="admin-panel admin-list-panel">
         <div className="admin-panel-heading"><div><p className="status">交付记录</p><h3>客户交付一览</h3></div><span>{totalElements} 条</span></div>
         <div className="admin-filters"><label><span>搜索</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} placeholder="交付编号或客户名称" /></label><label><span>状态</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as DeliveryStatus | ''); setPage(0) }}><option value="">全部</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
-        <div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{records.map((record) => <tr className={record.id === selected?.id ? 'selected' : ''} key={record.id}><td><strong>{record.deliveryNo}</strong><span>{record.customerCode} / {record.customerName}</span></td><td>{formatDate(record.expiresAt)}</td><td>{record.downloadCount} / {record.downloadLimit}</td><td><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span></td><td><button className="admin-detail-button" onClick={() => { setSelectedId(record.id); setNotice('') }}>详情</button></td></tr>)}</tbody></table></div>
-        <div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => { setSelectedId(record.id); setMobileDetailOpen(true) }}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div>
+        <div className="admin-table-wrap"><table><thead><tr><th>交付编号 / 客户</th><th>有效期</th><th>下载</th><th>状态</th><th aria-label="操作" /></tr></thead><tbody>{records.map((record) => <tr className={record.id === selected?.id ? 'selected' : ''} key={record.id}><td><strong>{record.deliveryNo}</strong><span>{record.customerCode} / {record.customerName}</span></td><td>{formatDate(record.expiresAt)}</td><td>{record.downloadCount} / {record.downloadLimit}</td><td><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span></td><td><button className="admin-detail-button" onClick={() => openDeliveryDetails(record.id)}>详情</button></td></tr>)}</tbody></table></div>
+        <div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => openDeliveryDetails(record.id)}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div>
         <div className="admin-pagination"><span>{totalElements === 0 ? '0 条' : `${page * 8 + 1}–${Math.min((page + 1) * 8, totalElements)} / 共 ${totalElements} 条`}</span><div><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>上一页</button><span>{page + 1} / {totalPages}</span><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>下一页</button></div></div>
       </section>
       {selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}

@@ -53,12 +53,22 @@ public class AsrayProvisioningService {
 
         state.processing(now);
         repository.saveAndFlush(state);
+        String productId = delivery.packageRelease().productId();
+        List<String> entitlements;
+        try {
+            entitlements = ProductEntitlementPolicy.resolve(productId);
+        } catch (IllegalArgumentException exception) {
+            state.failed("ASRAY_PRODUCT_NOT_SUPPORTED", Instant.now());
+            repository.saveAndFlush(state);
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ASRAY_PRODUCT_NOT_SUPPORTED",
+                    "ASRAY 商品権限を特定できませんでした。商品設定を確認してください。");
+        }
         String body = objectMapper.writeValueAsString(new ProvisionRequest(
                 state.externalEventId(),
                 delivery.customer().customerCode(),
                 delivery.deliveryNo(),
-                List.of(delivery.packageRelease().productId()),
-                List.of("ASRAY_SIMULATION_ACCESS"),
+                List.of(productId),
+                entitlements,
                 delivery.expiresAt(),
                 1));
         String timestamp = Instant.now().toString();
@@ -78,13 +88,16 @@ public class AsrayProvisioningService {
                     .body(body)
                     .retrieve()
                     .body(ProvisionResponse.class);
-            if (response == null || response.userId() == null || response.activationUrl() == null) {
+            if (response == null || response.userId() == null || response.activationUrl() == null
+                    || !entitlements.equals(response.entitlements())) {
                 throw new IllegalStateException("ASRAY response is incomplete");
             }
             state.completed(response.userId(), cipher.encrypt(response.activationUrl()), Instant.now());
+            repository.saveAndFlush(state);
             return new ProvisioningResult(response.userId(), response.activationUrl(), response.status());
         } catch (RuntimeException exception) {
             state.failed("ASRAY_PROVISIONING_FAILED", Instant.now());
+            repository.saveAndFlush(state);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "ASRAY_PROVISIONING_FAILED",
                     "ASRAY アカウントを発行できませんでした。時間をおいて再試行してください。");
         }
