@@ -59,10 +59,11 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 ## 6. 下载规则
 
 - `POST /deliveries/{token}/download-tickets`只在`ISSUED + READY`时成功
-- 签发票据即消耗一次次数，沿用已确认业务规则
+- 签发票据不消耗次数；`GET /download-tickets/{ticket}`首次成功取得受控文件流时，在数据库锁内消耗一次次数
 - `GET /download-tickets/{ticket}`验证hash、有效期、未使用状态和客户文件路径
 - 票据使用后不能再次下载；Response使用`application/zip`和安全的UTF-8附件名
-- 开始、完成、失败均写入下载事件；网络中断不返还次数
+- 文件流开始时写入`DOWNLOAD_STARTED`；HTTP服务器无法可靠判断客户端是否完整保存文件，因此不生成虚假的“下载完成”事件
+- 文件流开始后发生网络中断不返还次数
 - Storage key、绝对路径、客户姓名、token hash不出现在响应或日志中
 
 ## 7. ASRAY联动
@@ -74,15 +75,7 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 - Event ID保持幂等；调用失败不破坏已经生成的客户文件，但标记`FAILED`供管理员重试
 - Activation URL使用AES-GCM和独立环境密钥短期加密保存；页面只在有效交付Token下显示
 
-商品与训练权限映射：
-
-| Product | Entitlement |
-|---|---|
-| `SIMULATION_SOURCE`、旧`ASRAY_COMPLETE` | `DEMO_FULL` |
-| `DOCS_COMPLETE`、`DESIGN_EXAMPLES`、`REQUIREMENTS_COMMUNICATION`、`INCIDENT_BUG` | `DEMO_BASIC` |
-| `TEST_EVIDENCE`、`ROLE_TEST` | `DEMO_TEST` |
-| `PM_RELEASE_OPERATIONS`、`ROLE_OPERATIONS`、`ROLE_PM_PL` | `DEMO_MANAGEMENT` |
-| `ROLE_DEVELOPER` | `DEMO_DEVELOPER` |
+本期联动将母版Release的`product_id`原样发送，并统一赋予`ASRAY_SIMULATION_ACCESS`。商品细分权限尚未投入运营；追加细分时必须先补正双方权限矩阵并完成回归测试。
 
 ## 8. 验收条件
 
@@ -97,3 +90,17 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 ## 9. 判定边界
 
 本设计先在本地Docker和自动化测试中验证。真实域名、TLS、对象存储、正式客户、正式验收和生产Go/No-Go仍为`未实施/未判定`。
+
+## 10. 实装反馈（2026-08-07）
+
+| 区分 | 结果 |
+|---|---|
+| DB | Flyway V7新增客户交付包、ASRAY开通状态及商品ID字段 |
+| 资料生成 | 客户密码校验、逐Sheet页脚水印、XLSX Agile加密、ZIP及SHA-256生成已实现 |
+| 下载 | READY校验、一次性票据、首次真实取流计次、ZIP流式响应已实现 |
+| 账号联动 | HMAC签名、Event幂等、失败重试、Activation URL密文保存已实现 |
+| 画面 | 客户密码设置、生成结果、账号开通提示、真实下载已接通 |
+| 自动测试 | 后端资料生成/密码解密测试6件通过；前端构建通过 |
+| 跨系统测试 | 本地Docker完成生成、开通、激活、单会话登录、真实下载、摘要一致、票据单次使用和次数上限验证 |
+
+制造中发现并关闭两项偏差：共享网络缺少稳定的ASRAY服务别名，以及本地联动开关未开启。应用默认值和环境变量样例仍保持关闭，避免误在非本地环境启用。正式环境部署、TLS、正式客户UAT与Go/No-Go未实施。

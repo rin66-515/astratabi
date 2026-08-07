@@ -1,8 +1,8 @@
 # AstraTabi Portal：交付后台基本设计书
 
-- 版本：0.3
-- 日期：2026-08-01
-- 状态：不可变母版 ZIP 管理已实现；客户水印副本与真实下载待实现
+- 版本：0.4
+- 日期：2026-08-07
+- 状态：客户密码、加密资料包、真实下载与ASRAY账号联动已完成本地验证；生产发布未判定
 - 适用范围：AstraTabi 的资料包人工确认收款、客户专属链接交付与单管理员运营
 
 ## 1. 目标与边界
@@ -49,7 +49,7 @@
 
 任何状态迁移均由后端事务执行，并写入审计日志；前端仅展示结果。
 
-当前实现中，管理员创建交付后可生成专属链接，状态进入 `PREPARING`；客户页面仅显示“资料准备中”。只有文件交付阶段完成私有 ZIP 与水印副本，并将 `package_ready=true`、状态切换为 `ISSUED` 后，才允许签发下载票据和扣减下载次数。
+当前实现中，管理员创建交付后可生成专属链接，状态进入`PREPARING`。客户设置资料密码并成功生成加密ZIP后，系统将`package_ready=true`、状态切换为`ISSUED`。此后允许签发下载票据，并在首次取得真实文件流时扣减下载次数。
 
 ## 3. 权限与认证
 
@@ -82,11 +82,12 @@
 |---|---|---|
 | `portal_admin_user` | `admin_id`、`login_id`、`password_hash`、`enabled`、`last_login_at` | 单管理员账户 |
 | `portal_customer` | `customer_id`、`customer_code`、`display_name`、`wechat_contact`、`created_at` | 客户和微信联系信息 |
-| `portal_package_release` | `package_release_id`、`project_code`、`version`、`release_date`、`file_name`、`storage_key`、`sha256`、`status` | 经校验的不可变母版 ZIP 版本 |
+| `portal_package_release` | `package_release_id`、`project_code`、`product_id`、`version`、`release_date`、`file_name`、`storage_key`、`sha256`、`status` | 经校验的不可变母版 ZIP 版本 |
 | `portal_delivery` | `delivery_id`、`delivery_no`、`customer_id`、`package_release_id`、`project_code`、`status`、`expires_at`、`download_limit`、`download_count`、`watermark_text` | 一次交付的主记录；旧数据允许母版外键为空 |
 | `portal_delivery_package` | `package_id`、`delivery_id`、`source_object_key`、`delivered_object_key`、`file_name`、`sha256`、`generation_status` | 原始资料与客户水印副本 |
+| `portal_asray_provisioning` | `delivery_id`、`event_id`、`status`、`user_id`、Activation密文、重试/错误 | ASRAY账号开通结果 |
 | `portal_delivery_token` | `token_id`、`delivery_id`、`token_hash`、`issued_at`、`revoked_at`、`last_used_at` | 专属链接令牌，支持重发与撤销 |
-| `portal_download_event` | `event_id`、`delivery_id`、`token_id`、`package_id`、`event_type`、`occurred_at`、`client_ip`、`user_agent` | 查看、下载请求、下载成功/失败日志 |
+| `portal_download_event` | `event_id`、`delivery_id`、`token_id`、`package_id`、`event_type`、`occurred_at`、`client_ip`、`user_agent` | 查看、签票与下载开始日志 |
 | `portal_audit_log` | `audit_id`、`actor_type`、`actor_id`、`action`、`target_type`、`target_id`、`before_json`、`after_json`、`occurred_at` | 管理操作审计 |
 
 ### 4.1 关键约束
@@ -128,9 +129,10 @@
 |---|---|---|
 | `GET` | `/api/v1/deliveries/{rawToken}` | 显示可领取的资料摘要；不消耗下载次数 |
 | `POST` | `/api/v1/deliveries/{rawToken}/download-tickets` | 原子校验次数并签发一次性下载票据 |
+| `POST` | `/api/v1/deliveries/{rawToken}/document-password` | 校验客户设置的资料密码，生成加密客户包并开通ASRAY账号 |
 | `GET` | `/api/v1/download-tickets/{ticket}` | 下载交付文件；票据短时有效且只能使用一次 |
 
-前端请求下载时只传递 `rawToken`，不得传递、信任或修改 `download_count`、`download_limit`、交付状态或文件对象键。后端以数据库中当前记录为唯一权威数据源，在事务内完成校验、次数扣减、日志写入和票据签发，并在响应中返回最新剩余次数供前端显示。
+前端请求下载时只传递 `rawToken`，不得传递、信任或修改 `download_count`、`download_limit`、交付状态或文件对象键。后端以数据库中当前记录为唯一权威数据源。签票只建立短时凭证；首次取得真实文件流时，后端在事务内完成票据认领、次数扣减与开始事件写入。
 
 API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常信息。管理员写操作使用 CSRF 防护并要求有效会话。
 
@@ -141,18 +143,19 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 1. 管理员先上传不可变母版 ZIP 与 `.sha256`，服务端完成文件名、哈希和 ZIP 安全校验。
 2. 管理员确认收款后选择一个 `ACTIVE` 母版版本创建 `DRAFT` 交付。
 3. 服务端分配 `delivery_no` 并固定母版外键、文件名和 `watermark_text`。
-4. 服务端从母版生成客户专属副本，在 Excel 工作表的可见页眉/页脚或约定位置写入水印信息（待实现）。
-5. 将生成后的副本打包为 ZIP，计算 SHA-256，存入私有存储（待实现）。
-6. 管理员检查成功后将交付状态更新为 `ISSUED`，并仅在此时返回原始专属链接一次（待实现）。
+4. 客户通过专属链接设置12～64位资料打开密码；密码只在本次请求内存中使用，不写数据库或日志。
+5. 服务端从母版生成客户专属副本，在每个Excel Sheet页脚写入客户编号与交付编号，并执行OOXML Agile加密。
+6. 将生成后的副本打包为ZIP，计算SHA-256并原子移动到私有存储；成功后更新为`ISSUED + READY`。
+7. 客户页面显示ASRAY账号激活信息，并允许签发一次性下载票据。
 
 ### 6.2 下载次数处理
 
-`POST /download-tickets` 使用数据库事务锁定交付记录：
+下载处理分为签票与真实取流：
 
 1. 校验令牌未撤销、状态为 `ISSUED`、未过期且剩余次数大于 0。
-2. 原子增加 `download_count`，写入 `DOWNLOAD_TICKET_ISSUED` 日志。
-3. 生成短时、一次性下载票据。
-4. 票据被使用后写入 `DOWNLOAD_COMPLETED`；失败则记录失败原因。
+2. 生成短时、一次性下载票据；此时不增加`download_count`。
+3. `GET /download-tickets/{ticket}`再次校验文件、票据与交付状态，在数据库锁内认领票据并增加`download_count`。
+4. 开始返回ZIP文件流并写入`DOWNLOAD_STARTED`。
 
 已确认规则：“发起下载”即消耗一次下载次数。网络下载中断或客户重复点击不返还次数；该规则必须在客服说明和交付页面中明确展示。后续不采用“下载完成后计次”，以避免引入复杂且不可靠的完成确认机制。
 
@@ -182,10 +185,11 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 2. 客户/交付/令牌/审计表与管理列表 API。
 3. 管理台与客户受取页面连接真实 API。
 4. 私有文件上传、不可变母版 ZIP 管理和交付版本固定。（已完成）
-5. Excel 水印副本与 ZIP 生成任务。
-6. 一次性下载票据、次数限制与实际文件流交付。
-7. 单体测试、结合测试、综合测试与上线检查。
-8. HTTPS、反向代理、备份、日志轮转与正式发布。
+5. Excel 水印/加密副本与 ZIP 生成。（已完成，本地）
+6. 一次性下载票据、次数限制与实际文件流交付。（已完成，本地）
+7. ASRAY账号开通、一次性激活与单会话验证。（已完成，本地）
+8. 单体测试、结合测试、综合测试与上线检查。
+9. HTTPS、反向代理、备份、日志轮转与正式发布。
 
 ## 10. 实现记录（更新：2026-08-01）
 
@@ -202,12 +206,13 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 - 管理台已实现母版上传、版本/哈希列表、归档操作，以及新建交付时只能选择有效母版版本。
 - 项目内测试件为 `dev-fixtures/ASRAY_COMPLETE_v0.0.0_20260801.zip`；仅用于开发验证，不是正式交付包。
 
-### 10.2 本期保留的边界
+### 10.2 客户专属交付与账号联动（更新：2026-08-07）
 
-- 母版 ZIP 已允许上传并保存，但只位于后端私有目录，不提供公开下载 URL。
-- 不生成 Excel 只读副本、客户水印 ZIP 或真实下载文件。
-- `GET /api/v1/download-tickets/{ticket}` 在文件交付模块完成前返回“尚未实现”；不可借此消耗次数。
-- 上述边界是为了保证“点击即扣减”的规则只在确实能交付文件时启用。
+- Flyway V7新增`portal_delivery_package`、`portal_asray_provisioning`及商品ID。
+- 客户密码校验、逐Sheet页脚水印、XLSX Agile加密、客户ZIP/SHA-256和失败重试已实现。
+- 真实ZIP流、一次性票据与首次取流计次已实现；网络层不伪造客户端保存完成事件。
+- ASRAY HMAC幂等开通、Activation URL密文保存、一次性激活与单会话已完成本地跨系统验证。
+- 正式域名、TLS、对象存储、正式客户UAT、备份恢复和生产Go/No-Go仍未实施。
 
 ## 9. 待决事项
 

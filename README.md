@@ -13,7 +13,7 @@
 本地 Docker 同时运行 React 静态前端、Java 21 后端和 PostgreSQL；这不是正式服务器部署配置。
 
 ```powershell
-cd C:\Users\admin\Documents\Codex\2026-07-12\zai\astratabi-portal
+cd <astratabi-portal项目根目录>
 docker compose up -d --build
 docker compose ps
 ```
@@ -50,7 +50,7 @@ docker compose up -d --build frontend backend
 ## 使用本机 Node 与 Maven 启动（可选）
 
 ```powershell
-cd C:\Users\admin\Documents\Codex\2026-07-12\zai\astratabi-portal
+cd <astratabi-portal项目根目录>
 npm.cmd run dev
 ```
 
@@ -76,8 +76,11 @@ mvn.cmd spring-boot:run
 - 单管理员认证、交付记录、链接、撤销、审计与 PostgreSQL 迁移
 - 私有母版 ZIP 上传、SHA-256 校验、不可变版本/归档管理
 - 新建交付时固定引用一个有效母版版本
+- 客户设置资料打开密码、逐 Sheet 水印、XLSX Agile 加密、客户专属 ZIP 与 SHA-256
+- 一次性下载票据、真实 ZIP 流式下载与首次取流计次
+- HMAC 幂等开通 ASRAY 账号、一次性激活与单会话登录
 
-仍待后续实现：客户专属 Excel 水印副本、交付 ZIP 生成、真实文件下载与下载票据消费闭环。人工微信收款继续作为运营流程，不接支付 API。
+上述交付闭环已在本地 Docker 通过自动测试与跨系统 E2E。正式服务器、TLS、外部备份、正式客户 UAT 与 Go/No-Go 仍未实施。人工微信收款继续作为运营流程，不接支付 API。
 
 ## 主要 API
 
@@ -86,6 +89,10 @@ mvn.cmd spring-boot:run
 - `GET /api/v1/admin/package-releases`
 - `POST /api/v1/admin/package-releases`（multipart: `archive` + `checksum`）
 - `POST /api/v1/admin/package-releases/{id}/archive`
+- `POST /api/v1/deliveries/{token}/document-password`
 - `POST /api/v1/deliveries/{token}/download-tickets`
+- `GET /api/v1/download-tickets/{ticket}`
+
+本地验证账号联动时，应先启动 ASRAY 的 Docker Compose，使其后端加入共享 `dev-lab-proxy` 网络。AstraTabi 应用默认配置不会自动启用外部账号开通；非本地环境必须显式设置独立 Client ID、HMAC Secret 与 Activation 加密密钥。
 
 测试用模拟母版位于 `dev-fixtures/`。正式包名称确认后替换测试件，不改变版本管理 API。

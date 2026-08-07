@@ -58,7 +58,7 @@
 ### 5.1 本地启动
 
 ```powershell
-cd C:\Users\admin\Documents\Codex\2026-07-12\zai\astratabi-portal
+cd <astratabi-portal项目根目录>
 docker compose up -d --build
 docker compose ps
 ```
