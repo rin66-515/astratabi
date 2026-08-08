@@ -74,6 +74,8 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 - 不发送真实姓名、微信、电话、付款截图、资料密码或ASRAY登录密码
 - Event ID保持幂等；调用失败不破坏已经生成的客户文件，但标记`FAILED`供管理员重试
 - Activation URL使用AES-GCM和独立环境密钥短期加密保存；页面只在有效交付Token下显示
+- ASRAY新规发行的User ID为`asr-`加8位易读随机码；AstraTabi将User ID视为不透明字符串，不按Prefix或长度判断
+- 已发行的`ext-`形式继续原样保存和显示，不触发再发行或Migration
 
 本期联动将母版Release的`product_id`原样发送，并按以下矩阵计算商品权限。ASRAY侧也按相同矩阵重新计算；未知商品或矩阵不一致时不创建账号。
 
@@ -122,3 +124,7 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 - 粘贴时只显示字符数和非法字符提示，不回显、记录或发送密码内容。
 - 即时检查12～64位、可见ASCII、英文字母、数字和两次一致；任一项不满足时禁止提交。
 - 汉字、全角字符、空格和换行允许暂时出现在输入框中以便客户识别问题，但必须标红且不能提交；后端校验继续作为最终防线。
+
+## 12. ASRAY User ID短缩化联动补足（2026-08-08）
+
+ASRAY新规发行响应的User IDを`asr-XXXXXXXX`へ変更した。AstraTabi的保存Column为50文字，现有处理不验证Prefix或固定长度，因此无需DB Migration和生产逻辑修改。Contract Test使用新形式确认响应保持；客户Package Service的既有`ext-`Fixture继续保留，用于确认旧Account结果仍可保存和交付。

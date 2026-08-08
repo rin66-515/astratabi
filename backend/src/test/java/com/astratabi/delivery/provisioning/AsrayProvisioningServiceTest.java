@@ -32,7 +32,7 @@ class AsrayProvisioningServiceTest {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] response = """
                     {"eventId":"11111111-2222-3333-4444-555555555555",
-                     "userId":"ext-contract","status":"PENDING_ACTIVATION",
+                     "userId":"asr-7K3M9Q2D","status":"PENDING_ACTIVATION",
                      "activationUrl":"https://asray.example/activate?token=test",
                      "entitlements":["SIM_CORE_WORKFLOW","SIM_TEST_EVIDENCE"]}
                     """.getBytes(StandardCharsets.UTF_8);
@@ -62,7 +62,7 @@ class AsrayProvisioningServiceTest {
 
             AsrayProvisioningService.ProvisioningResult result = service.provision(delivery);
 
-            assertThat(result.userId()).isEqualTo("ext-contract");
+            assertThat(result.userId()).isEqualTo("asr-7K3M9Q2D");
             assertThat(requestBody.get())
                     .contains("\"productIds\":[\"DEMO_TEST\"]")
                     .contains("\"entitlements\":[\"SIM_CORE_WORKFLOW\",\"SIM_TEST_EVIDENCE\"]")
