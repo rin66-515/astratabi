@@ -114,6 +114,7 @@
 | `POST` | `/api/v1/admin/auth/logout` | 注销会话 |
 | `GET` | `/api/v1/admin/session` | 取得当前管理员信息 |
 | `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录 |
+| `GET` | `/api/v1/admin/deliveries/{id}` | 取得交付详情及当前有效链接；响应禁止缓存，旧摘要记录不返回链接 |
 | `GET` | `/api/v1/admin/package-releases` | 查询有效/归档母版版本 |
 | `POST` | `/api/v1/admin/package-releases` | 同时上传 ZIP 与 `.sha256`，校验后登记不可变版本 |
 | `POST` | `/api/v1/admin/package-releases/{id}/archive` | 逻辑归档母版；不删除文件 |
@@ -177,7 +178,7 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 | 上传母版 | `POST /admin/package-releases` | 私有不可变 ZIP、SHA-256 与版本记录 |
 | 归档母版 | `POST /admin/package-releases/{id}/archive` | 保留文件并禁止新交付选择 |
 | 生成专属链接 | `POST /admin/deliveries/{id}/issue` | 水印 ZIP、令牌、链接 |
-| 详情抽屉 | `GET /admin/deliveries/{id}` | 交付、资料、令牌摘要 |
+| 详情抽屉 | `GET /admin/deliveries/{id}` | 交付、资料、当前有效链接或旧数据不可恢复状态 |
 | 延期、重发、停用 | 各状态变更 API | 新状态与审计日志 |
 
 ## 8. 实现顺序
