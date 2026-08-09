@@ -33,6 +33,7 @@ import {
 } from './api/client'
 
 const diary = [
+  { date: '2026.08.09', text: '掌柜飞剑传书　⇒　近日山中事务繁忙，但我要偷懒一会儿', tag: '日々' },
   { date: '2026.07.26', text: '遠回りの夜にも、次の一歩を照らす月がある。', tag: '日々' },
   { date: '2026.07.25', text: '言葉をひとつ覚えるたび、知らない街が少し近くなる。', tag: '日本語' },
   { date: '2026.07.24', text: '設計は、まだ見えない旅を誰かと共有するための地図。', tag: 'ものづくり' },
@@ -287,7 +288,7 @@ function Tavern() {
   return <section className="section room-section soft-section"><RoomHeading number="01" title="酒桌" description="坐下来以后，不必急着谈正事。这里留下日常、工作、旅行与偶尔冒出来的念头。" />
     <div className="diary-list">{diary.map((entry) => <article className="diary-card" key={entry.date}><div><span>{entry.date}</span><em>{entry.tag}</em></div><p>{entry.text}</p></article>)}</div>
     <ShopSignature>记</ShopSignature>
-    <UnderRenovation room="酒桌的里间">旧日记和旅途见闻仍在整理，眼下先留三句话作陪。</UnderRenovation>
+    <UnderRenovation room="酒桌的里间">旧日记和旅途见闻仍在整理，眼下先留几句话作陪。</UnderRenovation>
   </section>
 }
 
