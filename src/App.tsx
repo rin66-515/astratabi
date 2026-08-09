@@ -593,6 +593,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
 
   async function submitPackage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
     if (!archiveFile || !checksumFile) {
       setPackageNotice('请同时选择 ZIP 和对应的 .sha256 文件。')
       return
@@ -604,7 +605,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       setPackageNotice(result.duplicate ? '该版本与服务器现有文件一致，未重复保存。' : `已登记不可变资料包：${result.release.fileName}`)
       setArchiveFile(null)
       setChecksumFile(null)
-      event.currentTarget.reset()
+      form.reset()
       await refreshPackages()
       setPackageReleaseId(result.release.id)
     } catch (error) {
@@ -686,7 +687,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
         <label className="admin-field">SHA-256 校验文件<input type="file" accept=".sha256,text/plain" onChange={(event) => setChecksumFile(event.target.files?.[0] ?? null)} /></label>
         <button className="button primary" type="submit" disabled={uploading}>{uploading ? '校验并保存中…' : '校验并登记版本'}</button>
       </form>
-      <p className="admin-package-rule">文件名须为 ASRAY_COMPLETE_vX.Y.Z_YYYYMMDD.zip；服务器会重新计算哈希、检查 ZIP 安全性，并拒绝覆盖已有版本。</p>
+      <p className="admin-package-rule">文件名须为 已登记商品名_vX.Y.Z_YYYYMMDD.zip；服务器会重新计算哈希、检查 ZIP 安全性，并拒绝覆盖同一商品的已有版本。</p>
       {packageNotice && <p className="admin-detail-notice" role="status">{packageNotice}</p>}
       <div className="admin-package-list">
         {packageReleases.length === 0 && <p className="admin-package-empty">尚未登记资料包。可先使用项目内的模拟压缩包进行测试。</p>}
@@ -704,7 +705,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
           <label className="admin-field">客户编号<input value={customerCode} onChange={(event) => setCustomerCode(event.target.value)} placeholder="例：C001" /></label>
           <label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label>
           <div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div>
-          <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>v{release.version} / {release.releaseDate}</option>)}</select></label>
+          <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>{release.baseName} / v{release.version} / {release.releaseDate}</option>)}</select></label>
           <div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后由服务器固定</strong></div>
           <label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
           <label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label>

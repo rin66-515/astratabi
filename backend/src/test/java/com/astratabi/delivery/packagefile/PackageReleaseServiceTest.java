@@ -5,6 +5,8 @@ import com.astratabi.delivery.common.ApiException;
 import com.astratabi.delivery.config.PortalProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -39,11 +41,14 @@ class PackageReleaseServiceTest {
                 "http://127.0.0.1:18100",
                 new PortalProperties.Bootstrap("admin-001", ""),
                 new PortalProperties.Security("test-pepper", false, 15, 5),
-                new PortalProperties.PackageStorage(root.toString(), "ASRAY_COMPLETE", 10_000_000, 100, 50_000_000),
+                new PortalProperties.PackageStorage(root.toString(),
+                        "ASRAY_COMPLETE,ASRAY_ROLE_DEVELOPER,ASRAY_ROLE_TEST,ASRAY_ROLE_OPERATIONS,ASRAY_ROLE_PM_PL",
+                        10_000_000, 100, 50_000_000),
                 new PortalProperties.Asray(false, "http://asray", "client", "secret", ""));
         service = new PackageReleaseService(repository, auditService, properties);
         when(repository.findByFileName(any())).thenReturn(Optional.empty());
-        when(repository.findByProjectCodeAndVersionAndReleaseDate(any(), any(), any())).thenReturn(Optional.empty());
+        when(repository.findByProjectCodeAndBaseNameAndVersionAndReleaseDate(any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
         when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -61,6 +66,26 @@ class PackageReleaseServiceTest {
         assertThat(result.release().sha256()).isEqualTo(sha256(zip));
         assertThat(result.release().status()).isEqualTo(PackageReleaseStatus.ACTIVE);
         verify(auditService).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "ASRAY_ROLE_DEVELOPER,DEMO_TEST",
+            "ASRAY_ROLE_TEST,DEMO_TEST",
+            "ASRAY_ROLE_OPERATIONS,DEMO_MANAGEMENT",
+            "ASRAY_ROLE_PM_PL,DEMO_MANAGEMENT"
+    })
+    void uploadsRolePackageWithApprovedProductId(String baseName, String expectedProductId) throws Exception {
+        String fileName = baseName + "_v1.0.0_20260809.zip";
+        byte[] zip = zip("documents/README.txt", baseName);
+
+        PackageReleaseService.UploadResponse result = service.upload(
+                archive(fileName, zip), checksum(fileName, sha256(zip)), "admin-001");
+
+        assertThat(result.release().baseName()).isEqualTo(baseName);
+        assertThat(result.release().productId()).isEqualTo(expectedProductId);
+        verify(repository).findByProjectCodeAndBaseNameAndVersionAndReleaseDate(
+                "ASRAY", baseName, "1.0.0", java.time.LocalDate.of(2026, 8, 9));
     }
 
     @Test

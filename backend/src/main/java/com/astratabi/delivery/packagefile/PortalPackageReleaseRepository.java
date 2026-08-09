@@ -11,7 +11,8 @@ public interface PortalPackageReleaseRepository extends JpaRepository<PortalPack
 
     Optional<PortalPackageRelease> findByFileName(String fileName);
 
-    Optional<PortalPackageRelease> findByProjectCodeAndVersionAndReleaseDate(String projectCode, String version, LocalDate releaseDate);
+    Optional<PortalPackageRelease> findByProjectCodeAndBaseNameAndVersionAndReleaseDate(
+            String projectCode, String baseName, String version, LocalDate releaseDate);
 
     List<PortalPackageRelease> findAllByOrderByReleaseDateDescUploadedAtDesc();
 

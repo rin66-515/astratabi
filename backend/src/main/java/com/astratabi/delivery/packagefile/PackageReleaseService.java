@@ -112,9 +112,10 @@ public class PackageReleaseService {
                 }
                 throw new ApiException(HttpStatus.CONFLICT, "PACKAGE_RELEASE_IMMUTABLE_CONFLICT", "同名版本已经存在，且文件内容不同，不能覆盖。");
             }
-            repository.findByProjectCodeAndVersionAndReleaseDate(PROJECT_CODE, parts.version(), parts.releaseDate())
+            repository.findByProjectCodeAndBaseNameAndVersionAndReleaseDate(
+                            PROJECT_CODE, parts.baseName(), parts.version(), parts.releaseDate())
                     .ifPresent(existing -> {
-                        throw new ApiException(HttpStatus.CONFLICT, "PACKAGE_RELEASE_VERSION_CONFLICT", "同一版本和发布日期已经登记，不能替换。");
+                        throw new ApiException(HttpStatus.CONFLICT, "PACKAGE_RELEASE_VERSION_CONFLICT", "同一商品的同一版本和发布日期已经登记，不能替换。");
                     });
 
             String directoryKey = "packages/" + PROJECT_CODE.toLowerCase(Locale.ROOT) + "/v" + parts.version()
@@ -293,6 +294,8 @@ public class PackageReleaseService {
                     "ASRAY_REQUIREMENTS_COMMUNICATION", "ASRAY_INCIDENT_BUG_REPORT" -> "DEMO_BASIC";
             case "ASRAY_TEST_SPEC_EVIDENCE" -> "DEMO_TEST";
             case "ASRAY_PM_RELEASE_OPERATIONS" -> "DEMO_MANAGEMENT";
+            case "ASRAY_ROLE_DEVELOPER", "ASRAY_ROLE_TEST" -> "DEMO_TEST";
+            case "ASRAY_ROLE_OPERATIONS", "ASRAY_ROLE_PM_PL" -> "DEMO_MANAGEMENT";
             default -> throw badRequest("PACKAGE_PRODUCT_UNSUPPORTED", "该资料包尚未配置商品编号。");
         };
     }
