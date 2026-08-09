@@ -145,3 +145,11 @@ ASRAY新规发行响应的User IDを`asr-XXXXXXXX`へ変更した。AstraTabi的
 Package Release的版本唯一性按`project_code + base_name + version + release_date`判定。不同商品允许使用同一版本和发布日期，同一商品的同一版本仍禁止覆盖。正式母版文件名保持`{base_name}_v{SemVer}_{YYYYMMDD}.zip`；带`RC`标识的候选包不能直接登记为正式母版，需在正式发行工程中重新命名、生成对应SHA-256并完成验收。
 
 本补足不增加微信支付API。购买成立的系统触发点仍为客服确认收款后由管理员建立交付。
+
+## 14. 职种别Package实装反馈（2026-08-09）
+
+四种职种别Package已加入受控母版清单，并按第13节固定映射为`DEMO_TEST`或`DEMO_MANAGEMENT`。Flyway V8将Release唯一约束调整为`project_code + base_name + version + release_date`，因此不同商品可在同版同日并存，同一商品仍不可覆盖。管理画面的版本选择项同时显示base name、版本与发布日期。
+
+本地隔离环境使用四份正式命名测试母版完成上传、交付、客户密码设置、专属ZIP生成和ASRAY账号开通。四件交付均进入`ISSUED`，ASRAY侧分别取得预定Entitlement并以`MEMBER`加入`EXT-TRAINING`。开发／测试账号只显示基础与测试范围；运维／PM・PL账号追加本人计划范围，所有外部账号的承认、案件管理、予实及系统管理仍被拒绝。
+
+制造中发现上传成功后表单复位使用失效的异步事件引用，页面显示`Cannot read properties of null`。已在提交开始时保存Form引用，成功后使用稳定引用复位，并通过实际上传重新验证。正式客户、微信支付API、生产域名、TLS及生产Go／No-Go不在本次范围内，继续为未实施・未判定。
