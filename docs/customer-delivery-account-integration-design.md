@@ -128,3 +128,20 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 ## 12. ASRAY User ID短缩化联动补足（2026-08-08）
 
 ASRAY新规发行响应的User IDを`asr-XXXXXXXX`へ変更した。AstraTabi的保存Column为50文字，现有处理不验证Prefix或固定长度，因此无需DB Migration和生产逻辑修改。Contract Test使用新形式确认响应保持；客户Package Service的既有`ext-`Fixture继续保留，用于确认旧Account结果仍可保存和交付。
+
+## 13. 职种别Package与ASRAY权限联动补足（2026-08-09）
+
+客服确认收款后，管理员选择已登记的职种别Package建立交付。Package Release的`base_name`在上传时转换为既有四级`product_id`，后续资料密码设置、客户副本生成、ASRAY账号开通及下载流程不变。
+
+| Package base_name | 销售包 | product_id | ASRAY范围 |
+|---|---|---|---|
+| `ASRAY_ROLE_DEVELOPER` | 开发岗位专属包 | `DEMO_TEST` | 基础操作、本人测试证迹・帐票 |
+| `ASRAY_ROLE_TEST` | 测试岗位专属包 | `DEMO_TEST` | 基础操作、本人测试证迹・帐票 |
+| `ASRAY_ROLE_OPERATIONS` | 运维岗位专属包 | `DEMO_MANAGEMENT` | 基础操作、本人计划・帐票 |
+| `ASRAY_ROLE_PM_PL` | PM・PL岗位专属包 | `DEMO_MANAGEMENT` | 基础操作、本人计划・帐票 |
+
+职种名称不是ASRAY内部Role。外部账号仍固定为`MEMBER`，由Entitlement控制本人范围；不授予`MANAGER`、`ADMIN`或内部Role Authority。Developer与Tester、Operations与PM・PL分别共享系统训练范围，但交付资料内容不同。
+
+Package Release的版本唯一性按`project_code + base_name + version + release_date`判定。不同商品允许使用同一版本和发布日期，同一商品的同一版本仍禁止覆盖。正式母版文件名保持`{base_name}_v{SemVer}_{YYYYMMDD}.zip`；带`RC`标识的候选包不能直接登记为正式母版，需在正式发行工程中重新命名、生成对应SHA-256并完成验收。
+
+本补足不增加微信支付API。购买成立的系统触发点仍为客服确认收款后由管理员建立交付。
