@@ -7,6 +7,7 @@ import {
   archivePackageRelease,
   createDelivery,
   extendDelivery,
+  getAdminDelivery,
   getAdminDeliveries,
   getAdminEvents,
   getAdminSession,
@@ -21,6 +22,7 @@ import {
   setDocumentPassword,
   uploadPackageRelease,
   type AdminDelivery,
+  type AdminDeliveryDetail,
   type ApiError,
   type CustomerPackageResult,
   type DeliveryEvent,
@@ -516,12 +518,31 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
   return <section className="section admin-preview-section"><div className="section-heading"><p className="eyebrow">管理者専用</p><h2>交付管理台</h2><p>交付の作成・リンク発行・停止は、単一の管理者会話でのみ実行できます。</p></div><section className="admin-panel admin-issue-panel"><div className="admin-panel-heading"><div><p className="status">ADMIN SIGN IN</p><h3>ログイン</h3></div></div><form className="admin-form" onSubmit={submit}><div className="admin-form-grid"><label className="admin-field">ログインID<input autoComplete="username" value={loginId} onChange={(event) => setLoginId(event.target.value)} /></label><label className="admin-field">パスワード<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label></div><div className="admin-form-actions"><p>管理操作はサーバー側の会話確認、CSRF 保護、監査ログ記録を通して処理します。</p><button className="button primary" disabled={submitting} type="submit">{submitting ? '確認中…' : 'ログイン'}</button></div></form>{notice && <p className="admin-detail-notice" role="alert">{notice}</p>}</section></section>
 }
 
-function LiveDeliveryDetails({ record, events, notice, onAction }: { record: AdminDelivery; events: DeliveryEvent[]; notice: string; onAction: (action: 'extend' | 'reissue' | 'revoke') => void }) {
-  return <><p className="status">交付详情</p><h3>{record.deliveryNo}</h3><dl><div><dt>客户</dt><dd>{record.customerCode} / {record.customerName}</dd></div><div><dt>案件</dt><dd>{record.projectName}</dd></div><div><dt>母版资料包</dt><dd>{record.packageName}{record.packageVersion ? ` / v${record.packageVersion}` : ' / 旧数据'}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>下载次数</dt><dd>{record.downloadCount} / {record.downloadLimit}</dd></div></dl><div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长 30 日</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('revoke')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>{record.status === 'PREPARING' ? '母版版本已经固定；客户水印副本尚未生成，当前链接只显示“准备中”，不会消耗下载次数。' : '所有状态变更和下载事件均由服务端记录。'}</small>{events.length > 0 && <ol className="admin-event-list">{events.slice(0, 4).map((event) => <li key={`${event.occurredAt}-${event.eventType}`}><time>{formatDate(event.occurredAt)}</time><span>{event.eventType}</span></li>)}</ol>}</>
+function LiveDeliveryDetails({ detail, events, notice, onAction }: { detail: AdminDeliveryDetail; events: DeliveryEvent[]; notice: string; onAction: (action: 'extend' | 'reissue' | 'revoke') => void }) {
+  const { delivery: record, deliveryLink, linkState } = detail
+  const linkInputRef = useRef<HTMLInputElement>(null)
+  const [copyNotice, setCopyNotice] = useState('')
+
+  useEffect(() => setCopyNotice(''), [record.id, deliveryLink])
+
+  async function copyLink() {
+    if (!deliveryLink) return
+    try {
+      await navigator.clipboard.writeText(deliveryLink)
+      setCopyNotice('当前有效链接已复制。')
+    } catch {
+      linkInputRef.current?.focus()
+      linkInputRef.current?.select()
+      setCopyNotice('无法自动复制，已选中链接，请按 Ctrl+C 复制。')
+    }
+  }
+
+  return <><p className="status">交付详情</p><h3>{record.deliveryNo}</h3><dl><div><dt>客户</dt><dd>{record.customerCode} / {record.customerName}</dd></div><div><dt>案件</dt><dd>{record.projectName}</dd></div><div><dt>母版资料包</dt><dd>{record.packageName}{record.packageVersion ? ` / v${record.packageVersion}` : ' / 旧数据'}</dd></div><div><dt>自动水印</dt><dd>{record.watermarkText}</dd></div><div><dt>下载次数</dt><dd>{record.downloadCount} / {record.downloadLimit}</dd></div></dl>{linkState === 'AVAILABLE' && deliveryLink && <div className="admin-issued-link"><p><strong>当前有效专属链接</strong><span>仅管理员详情可读取；请复制后发送给对应客户。</span></p><div className="admin-issued-link-value"><input ref={linkInputRef} aria-label="当前有效客户专属链接" readOnly value={deliveryLink} onFocus={(event) => event.currentTarget.select()} /><div className="admin-issued-link-actions"><button type="button" onClick={() => void copyLink()}>复制链接</button><a href={deliveryLink} target="_blank" rel="noreferrer">新窗口打开</a></div></div>{copyNotice && <small role="status">{copyNotice}</small>}</div>}{linkState === 'LEGACY_UNRECOVERABLE' && <p className="admin-detail-notice">该记录是在安全密文保存功能上线前生成的。原链接继续有效，但系统无法从摘要恢复；如需再次发送，请点击“重新发放”。</p>}{linkState === 'NONE' && <p className="admin-detail-notice">当前没有有效的专属链接。</p>}<div className="admin-detail-actions"><button onClick={() => onAction('extend')}>延长 30 日</button><button onClick={() => onAction('reissue')}>重新发放</button><button onClick={() => onAction('revoke')}>停止链接</button></div>{notice && <p className="admin-detail-notice" role="status">{notice}</p>}<small>{record.status === 'PREPARING' ? '母版版本已经固定；客户水印副本尚未生成，当前链接只显示“准备中”，不会消耗下载次数。' : '所有状态变更和下载事件均由服务端记录。'}</small>{events.length > 0 && <ol className="admin-event-list">{events.slice(0, 4).map((event) => <li key={`${event.occurredAt}-${event.eventType}`}><time>{formatDate(event.occurredAt)}</time><span>{event.eventType}</span></li>)}</ol>}</>
 }
 
 function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [records, setRecords] = useState<AdminDelivery[]>([])
+  const [selectedDetail, setSelectedDetail] = useState<AdminDeliveryDetail | null>(null)
   const [packageReleases, setPackageReleases] = useState<PackageRelease[]>([])
   const [summary, setSummary] = useState<DeliverySummaryCounts>({ total: 0, issued: 0, preparing: 0, revoked: 0 })
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -535,7 +556,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [packageNotice, setPackageNotice] = useState('')
   const [expiresAt, setExpiresAt] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
   const [downloadLimit, setDownloadLimit] = useState('3')
-  const [issuedLink, setIssuedLink] = useState('')
+  const [issuedLink, setIssuedLink] = useState<{ deliveryId: string; url: string } | null>(null)
   const [linkCopyNotice, setLinkCopyNotice] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<DeliveryStatus | ''>('')
@@ -572,7 +593,29 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
 
   useEffect(() => { void refresh() }, [page, search, statusFilter])
   useEffect(() => { void refreshPackages() }, [])
-  useEffect(() => { if (selectedId) getAdminEvents(selectedId).then(setEvents).catch(() => setEvents([])) }, [selectedId])
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedDetail(null)
+      setEvents([])
+      return
+    }
+    setSelectedDetail(null)
+    let active = true
+    getAdminDelivery(selectedId)
+      .then((detail) => {
+        if (!active) return
+        setSelectedDetail(detail)
+      })
+      .catch((error: ApiError) => {
+        if (!active) return
+        setSelectedDetail(null)
+        setNotice(error.message)
+      })
+    getAdminEvents(selectedId)
+      .then((loadedEvents) => { if (active) setEvents(loadedEvents) })
+      .catch(() => { if (active) setEvents([]) })
+    return () => { active = false }
+  }, [selectedId])
 
   async function submitDelivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -582,7 +625,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       if (!packageReleaseId) throw new Error('请先上传并选择一个有效资料包版本。')
       const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageReleaseId, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
       const issued = await issueDelivery(created.id)
-      setIssuedLink(issued.deliveryLink)
+      setIssuedLink({ deliveryId: created.id, url: issued.deliveryLink })
       setNotice('已创建交付并生成专属链接。资料包生成完成前，客户页面会显示“准备中”。')
       await refresh()
       setSelectedId(created.id)
@@ -632,12 +675,17 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       if (action === 'extend') await extendDelivery(selected.id, new Date(Date.now() + 30 * 86400000).toISOString())
       if (action === 'reissue') {
         const issued = await issueDelivery(selected.id, true)
-        setIssuedLink(issued.deliveryLink)
+        setIssuedLink({ deliveryId: selected.id, url: issued.deliveryLink })
         setLinkCopyNotice('')
       }
-      if (action === 'revoke') await revokeDelivery(selected.id)
+      if (action === 'revoke') {
+        await revokeDelivery(selected.id)
+        setIssuedLink((current) => current?.deliveryId === selected.id ? null : current)
+      }
       setNotice(action === 'extend' ? '已将有效期延长 30 日。' : action === 'reissue' ? '已撤销旧令牌并生成新链接。' : '已停止该专属链接。')
       await refresh()
+      setSelectedDetail(await getAdminDelivery(selected.id))
+      setEvents(await getAdminEvents(selected.id))
     } catch (error) {
       setNotice((error as ApiError).message)
     }
@@ -651,7 +699,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   async function copyIssuedLink() {
     if (!issuedLink) return
     try {
-      await navigator.clipboard.writeText(issuedLink)
+      await navigator.clipboard.writeText(issuedLink.url)
       setLinkCopyNotice('专属链接已复制。')
     } catch {
       issuedLinkInputRef.current?.focus()
@@ -712,7 +760,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
         </div>
         <div className="admin-form-actions"><p>该记录固定引用所选母版版本。客户设置资料密码且 ASRAY 账号开通成功后，才开放真实下载。</p><button className="button primary" type="submit" disabled={!packageReleaseId}>生成专属链接</button></div>
       </form>
-      {issuedLink && <div className="admin-issued-link"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；令牌只在当前操作结果中显示。</span></p><div className="admin-issued-link-value"><input ref={issuedLinkInputRef} aria-label="客户专属链接" readOnly value={issuedLink} onFocus={(event) => event.currentTarget.select()} /><div className="admin-issued-link-actions"><button type="button" onClick={() => void copyIssuedLink()}>复制链接</button><a href={issuedLink} target="_blank" rel="noreferrer">新窗口打开</a></div></div>{linkCopyNotice && <small role="status">{linkCopyNotice}</small>}</div>}
+      {issuedLink && <div className="admin-issued-link"><p><strong>已生成专属链接</strong><span>请复制后通过 WeChat 发给客户；以后也可以从该交付的管理员详情中再次取得。</span></p><div className="admin-issued-link-value"><input ref={issuedLinkInputRef} aria-label="客户专属链接" readOnly value={issuedLink.url} onFocus={(event) => event.currentTarget.select()} /><div className="admin-issued-link-actions"><button type="button" onClick={() => void copyIssuedLink()}>复制链接</button><a href={issuedLink.url} target="_blank" rel="noreferrer">新窗口打开</a></div></div>{linkCopyNotice && <small role="status">{linkCopyNotice}</small>}</div>}
     </section>
     <div className="admin-management">
       <section className="admin-panel admin-list-panel">
@@ -722,9 +770,9 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
         <div className="admin-mobile-records">{records.map((record) => <button className="admin-mobile-record" key={record.id} onClick={() => openDeliveryDetails(record.id)}><span className={`admin-status ${statusClass(record.status)}`}>{statusLabels[record.status]}</span><strong>{record.customerCode} / {record.customerName}</strong><small>{record.deliveryNo}</small><div><span>有效期：{formatDate(record.expiresAt)}</span><span>下载：{record.downloadCount} / {record.downloadLimit}</span></div></button>)}</div>
         <div className="admin-pagination"><span>{totalElements === 0 ? '0 条' : `${page * 8 + 1}–${Math.min((page + 1) * 8, totalElements)} / 共 ${totalElements} 条`}</span><div><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>上一页</button><span>{page + 1} / {totalPages}</span><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>下一页</button></div></div>
       </section>
-      {selected && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></aside>}
+      {selectedDetail && <aside className="admin-detail" aria-live="polite"><LiveDeliveryDetails detail={selectedDetail} events={events} notice={notice} onAction={updateSelected} /></aside>}
     </div>
-    {mobileDetailOpen && selected && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails record={selected} events={events} notice={notice} onAction={updateSelected} /></section></div>}
+    {mobileDetailOpen && selectedDetail && <div className="mobile-detail-layer"><button className="mobile-detail-backdrop" aria-label="关闭交付详情" onClick={() => setMobileDetailOpen(false)} /><section className="admin-detail mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="交付详情"><div className="mobile-detail-handle" /><button className="mobile-detail-close" onClick={() => setMobileDetailOpen(false)}>关闭</button><LiveDeliveryDetails detail={selectedDetail} events={events} notice={notice} onAction={updateSelected} /></section></div>}
     <section className="admin-audit"><div><p className="status">系统说明</p><h3>交付与下载记录</h3></div><ol><li><time>当前阶段</time><span>母版校验、客户专属 Excel 加密、ZIP、ASRAY 开户与一次性下载票据</span><em>已接通</em></li><li><time>正式环境</time><span>TLS、正式密钥、备份与监控</span><em>未実施</em></li></ol></section>
   </section>
 

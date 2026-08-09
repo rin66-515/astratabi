@@ -13,7 +13,8 @@ public record PortalProperties(
     public record Bootstrap(String adminLoginId, String adminPassword) {
     }
 
-    public record Security(String tokenPepper, boolean cookieSecure, int adminLockMinutes, int maxFailedLogins) {
+    public record Security(String tokenPepper, String deliveryTokenEncryptionKey,
+                           boolean cookieSecure, int adminLockMinutes, int maxFailedLogins) {
     }
 
     public record PackageStorage(String root, String allowedBaseName, long maxUploadBytes,

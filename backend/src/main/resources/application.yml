@@ -26,6 +26,7 @@ portal:
     admin-password: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   security:
     token-pepper: ${PORTAL_TOKEN_PEPPER:}
+    delivery-token-encryption-key: ${PORTAL_DELIVERY_TOKEN_ENCRYPTION_KEY:}
     cookie-secure: ${PORTAL_COOKIE_SECURE:true}
     admin-lock-minutes: 15
     max-failed-logins: 5

@@ -14,6 +14,8 @@ public interface PortalDeliveryTokenRepository extends JpaRepository<PortalDeliv
     @Query("select t from PortalDeliveryToken t join fetch t.delivery d join fetch d.customer where t.tokenHash = :tokenHash")
     Optional<PortalDeliveryToken> findDetailByTokenHash(@Param("tokenHash") String tokenHash);
 
+    Optional<PortalDeliveryToken> findFirstByDelivery_IdAndRevokedAtIsNullOrderByIssuedAtDesc(UUID deliveryId);
+
     @Modifying
     @Query("update PortalDeliveryToken t set t.revokedAt = :now where t.delivery.id = :deliveryId and t.revokedAt is null")
     int revokeActiveByDeliveryId(@Param("deliveryId") UUID deliveryId, @Param("now") Instant now);

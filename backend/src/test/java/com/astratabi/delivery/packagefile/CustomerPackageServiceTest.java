@@ -61,7 +61,7 @@ class CustomerPackageServiceTest {
         PortalDeliveryPackage state = PortalDeliveryPackage.create(delivery, "master.zip", Instant.now());
         String rawToken = "t".repeat(43);
         PortalDeliveryToken token = PortalDeliveryToken.create(
-                delivery, SecretHash.sha256(rawToken, "test-pepper"));
+                delivery, SecretHash.sha256(rawToken, "test-pepper"), "test-ciphertext");
 
         when(tokenRepository.findDetailByTokenHash(any())).thenReturn(Optional.of(token));
         when(packageRepository.findByDeliveryIdForUpdate(delivery.id())).thenReturn(Optional.of(state));
@@ -124,7 +124,8 @@ class CustomerPackageServiceTest {
         return new PortalProperties(
                 "http://127.0.0.1:18100",
                 new PortalProperties.Bootstrap("admin-001", ""),
-                new PortalProperties.Security("test-pepper", false, 15, 5),
+                new PortalProperties.Security("test-pepper",
+                        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", false, 15, 5),
                 new PortalProperties.PackageStorage(
                         root.toString(), "ASRAY_COMPLETE", 10_000_000, 100, 50_000_000),
                 new PortalProperties.Asray(

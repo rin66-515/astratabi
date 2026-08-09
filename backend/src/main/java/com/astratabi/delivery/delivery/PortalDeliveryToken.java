@@ -23,6 +23,8 @@ public class PortalDeliveryToken {
     PortalDelivery delivery;
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     String tokenHash;
+    @Column(name = "token_ciphertext", length = 512)
+    String tokenCiphertext;
     @Column(name = "issued_at", nullable = false)
     Instant issuedAt;
     @Column(name = "revoked_at")
@@ -33,11 +35,12 @@ public class PortalDeliveryToken {
     protected PortalDeliveryToken() {
     }
 
-    public static PortalDeliveryToken create(PortalDelivery delivery, String tokenHash) {
+    public static PortalDeliveryToken create(PortalDelivery delivery, String tokenHash, String tokenCiphertext) {
         PortalDeliveryToken token = new PortalDeliveryToken();
         token.id = UUID.randomUUID();
         token.delivery = delivery;
         token.tokenHash = tokenHash;
+        token.tokenCiphertext = tokenCiphertext;
         token.issuedAt = Instant.now();
         return token;
     }
@@ -47,4 +50,5 @@ public class PortalDeliveryToken {
     public boolean active() { return revokedAt == null; }
     public UUID id() { return id; }
     public PortalDelivery delivery() { return delivery; }
+    public String tokenCiphertext() { return tokenCiphertext; }
 }

@@ -59,6 +59,12 @@ export type AdminDelivery = {
   packageReady: boolean
 }
 
+export type AdminDeliveryDetail = {
+  delivery: AdminDelivery
+  deliveryLink: string | null
+  linkState: 'AVAILABLE' | 'LEGACY_UNRECOVERABLE' | 'NONE'
+}
+
 export type Page<T> = {
   content: T[]
   totalElements: number
@@ -177,6 +183,10 @@ export function getAdminDeliveries(params: { keyword?: string; status?: Delivery
   query.set('page', String(params.page ?? 0))
   query.set('size', String(params.size ?? 8))
   return request<Page<AdminDelivery>>(`/api/v1/admin/deliveries?${query}`)
+}
+
+export function getAdminDelivery(id: string) {
+  return request<AdminDeliveryDetail>(`/api/v1/admin/deliveries/${id}`)
 }
 
 export function getAdminSummary() {

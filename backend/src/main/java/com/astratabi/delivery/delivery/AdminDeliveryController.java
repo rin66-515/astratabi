@@ -7,7 +7,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,8 +57,10 @@ public class AdminDeliveryController {
     }
 
     @GetMapping("/{id}")
-    public DeliveryService.AdminDeliveryResponse detail(@PathVariable UUID id) {
-        return service.detail(id);
+    public ResponseEntity<DeliveryService.AdminDeliveryDetailResponse> detail(@PathVariable UUID id) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(service.detail(id));
     }
 
     @PostMapping("/{id}/issue")
@@ -81,7 +85,7 @@ public class AdminDeliveryController {
 
     @GetMapping("/{id}/events")
     public List<DownloadEventResponse> events(@PathVariable UUID id) {
-        service.detail(id);
+        service.assertExists(id);
         return eventRepository.findTop100ByDelivery_IdOrderByOccurredAtDesc(id).stream()
                 .map(event -> new DownloadEventResponse(event.occurredAt(), event.eventType(), event.clientIp()))
                 .toList();

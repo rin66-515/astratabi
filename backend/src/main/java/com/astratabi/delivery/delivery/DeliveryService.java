@@ -42,12 +42,14 @@ public class DeliveryService {
     private final PortalProperties properties;
     private final PackageReleaseService packageReleaseService;
     private final PortalDeliveryPackageRepository deliveryPackageRepository;
+    private final DeliveryTokenCipher deliveryTokenCipher;
 
     public DeliveryService(PortalCustomerRepository customerRepository, PortalDeliveryRepository deliveryRepository,
                            PortalDeliveryTokenRepository tokenRepository, PortalDownloadTicketRepository ticketRepository,
                            PortalDownloadEventRepository eventRepository, AuditService auditService, PortalProperties properties,
                            PackageReleaseService packageReleaseService,
-                           PortalDeliveryPackageRepository deliveryPackageRepository) {
+                           PortalDeliveryPackageRepository deliveryPackageRepository,
+                           DeliveryTokenCipher deliveryTokenCipher) {
         this.customerRepository = customerRepository;
         this.deliveryRepository = deliveryRepository;
         this.tokenRepository = tokenRepository;
@@ -57,6 +59,7 @@ public class DeliveryService {
         this.properties = properties;
         this.packageReleaseService = packageReleaseService;
         this.deliveryPackageRepository = deliveryPackageRepository;
+        this.deliveryTokenCipher = deliveryTokenCipher;
     }
 
     @Transactional
@@ -102,8 +105,16 @@ public class DeliveryService {
     }
 
     @Transactional(readOnly = true)
-    public AdminDeliveryResponse detail(UUID id) {
-        return AdminDeliveryResponse.from(requireDetail(id));
+    public AdminDeliveryDetailResponse detail(UUID id) {
+        PortalDelivery delivery = requireDetail(id);
+        return tokenRepository.findFirstByDelivery_IdAndRevokedAtIsNullOrderByIssuedAtDesc(id)
+                .map(token -> detailWithActiveToken(delivery, token))
+                .orElseGet(() -> AdminDeliveryDetailResponse.withoutLink(delivery));
+    }
+
+    @Transactional(readOnly = true)
+    public void assertExists(UUID id) {
+        requireDetail(id);
     }
 
     @Transactional
@@ -116,7 +127,8 @@ public class DeliveryService {
         tokenRepository.revokeActiveByDeliveryId(delivery.id(), now);
         delivery.beginPreparing(now);
         String rawToken = generateOpaqueToken();
-        tokenRepository.save(PortalDeliveryToken.create(delivery, tokenHash(rawToken)));
+        tokenRepository.save(PortalDeliveryToken.create(
+                delivery, tokenHash(rawToken), deliveryTokenCipher.encrypt(rawToken)));
         auditService.record("ADMIN", actorId, "DELIVERY_LINK_PREPARED", "DELIVERY", delivery.id().toString(), null,
                 "{\"deliveryNo\":\"" + delivery.deliveryNo() + "\",\"status\":\"PREPARING\"}");
         return new IssueResponse(AdminDeliveryResponse.from(delivery), buildPublicLink(rawToken), "PREPARING");
@@ -251,6 +263,15 @@ public class DeliveryService {
         return properties.publicBaseUrl().replaceAll("/$", "") + "/#delivery?token=" + rawToken;
     }
 
+    private AdminDeliveryDetailResponse detailWithActiveToken(
+            PortalDelivery delivery, PortalDeliveryToken token) {
+        if (token.tokenCiphertext() == null || token.tokenCiphertext().isBlank()) {
+            return AdminDeliveryDetailResponse.legacyUnrecoverable(delivery);
+        }
+        String rawToken = deliveryTokenCipher.decrypt(token.tokenCiphertext());
+        return AdminDeliveryDetailResponse.available(delivery, buildPublicLink(rawToken));
+    }
+
     private String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
@@ -277,6 +298,20 @@ public class DeliveryService {
     }
 
     public record IssueResponse(AdminDeliveryResponse delivery, String deliveryLink, String notice) {
+    }
+
+    public record AdminDeliveryDetailResponse(AdminDeliveryResponse delivery, String deliveryLink, String linkState) {
+        static AdminDeliveryDetailResponse available(PortalDelivery delivery, String deliveryLink) {
+            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), deliveryLink, "AVAILABLE");
+        }
+
+        static AdminDeliveryDetailResponse legacyUnrecoverable(PortalDelivery delivery) {
+            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), null, "LEGACY_UNRECOVERABLE");
+        }
+
+        static AdminDeliveryDetailResponse withoutLink(PortalDelivery delivery) {
+            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), null, "NONE");
+        }
     }
 
     public record DeliverySummaryResponse(long total, long issued, long preparing, long revoked) {
