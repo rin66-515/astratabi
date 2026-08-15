@@ -53,7 +53,7 @@ public class AdminDeliveryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DeliveryService.AdminDeliveryResponse create(@Valid @RequestBody CreateRequest request, Authentication authentication) {
-        return service.create(new DeliveryService.CreateDeliveryRequest(request.customerCode(), request.customerName(), request.packageReleaseId(), request.expiresAt(), request.downloadLimit()), authentication.getName());
+        return service.create(new DeliveryService.CreateDeliveryRequest(request.customerName(), request.packageReleaseId(), request.expiresAt(), request.downloadLimit()), authentication.getName());
     }
 
     @GetMapping("/{id}")
@@ -92,7 +92,6 @@ public class AdminDeliveryController {
     }
 
     public record CreateRequest(
-            @NotBlank(message = "客户编号为必填项。") String customerCode,
             @NotBlank(message = "客户名称为必填项。") String customerName,
             @NotNull(message = "请选择资料包版本。") UUID packageReleaseId,
             @NotNull(message = "有效期为必填项。") @Future(message = "有效期必须是未来时间。") Instant expiresAt,

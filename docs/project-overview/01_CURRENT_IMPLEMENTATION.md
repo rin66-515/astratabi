@@ -1,6 +1,6 @@
 # 当前实现说明
 
-基准日：2026-08-08
+基准日：2026-08-16
 
 判定依据：当前 `main` 分支的应用代码、Flyway 迁移、Docker Compose 与自动测试。
 
@@ -39,6 +39,7 @@
 | 交付一览 | 分页、关键词、状态筛选、摘要 | `実装済` |
 | 交付详情 | 基本信息、状态、下载数、事件、当前有效链接的安全表示与复制 | `実装済` |
 | 交付操作 | 新建、生成/重新生成链接、延长、撤销 | `実装済` |
+| 购买编号 | 客服输入客户显示名；服务端按每次购买自动生成客户编号与交付编号 | `実装済` |
 | 移动端 | 卡片列表与详情层 | `実装済` |
 | 操作审计 | 管理员操作写入 `portal_audit_log` | `実装済` |
 | 多管理员角色 | ADMIN/SUPPORT 等权限划分 | `未実装` |
@@ -79,6 +80,8 @@
 
 以上闭环已在本地Docker以模拟客户完成跨系统验证。正式服务器、正式客户、TLS与生产UAT仍未实施，不得把本地测试结果表述为生产发布完成。
 
+客户管理采用简单版购买单元模型：同一显示名再次购买时仍建立新的`portal_customer`、`portal_delivery`、客户专属包和ASRAY账号，不依赖手机号或姓名合并客户。每条`portal_delivery`视为一笔订单；需要统计有效订单时排除`CANCELLED`状态即可。
+
 ASRAY权限由受控商品ID映射：`DEMO_BASIC`提供共通业务，`DEMO_TEST`追加本人测试证迹，`DEMO_MANAGEMENT`追加本人计划与本人Report，`DEMO_FULL`提供三类训练权限。外部账号始终为`MEMBER`，不会取得ASRAY内部`MANAGER`或`ADMIN`。ASRAY服务端会重新计算商品权限并限制为本人数据与共用训练案件`EXT-TRAINING`；承认、真实案件管理、预测、系统管理和Master维护不对外部账号开放。
 
 ## 6. 数据库现状
@@ -105,7 +108,9 @@ ASRAY权限由受控商品ID映射：`DEMO_BASIC`提供共通业务，`DEMO_TEST
 
 ## 7. 自动测试现状
 
-本期后端全量测试9件通过，除客户包密码、水印、加密和母版不可变外，追加覆盖商品ID至ASRAY Entitlement的转换、请求体、响应照合及Provisioning状态的明示保存。既有`PackageReleaseService`测试继续覆盖正常上传、摘要不一致、幂等重试和不安全ZIP路径拒绝。
+本期Portal后端全量测试21件通过，追加覆盖同一客户显示名连续购买时生成不同客户编号、不同交付编号及不同客户记录，并验证编号格式和关联规则。既有测试继续覆盖客户包密码、水印、加密、母版不可变、商品ID至ASRAY Entitlement转换、请求体、响应照合及Provisioning状态保存。ASRAY后端全量841件通过。
+
+本地Docker真实API验证使用同一显示名建立两笔订单：两笔均生成独立ASRAY账号，客户包状态为`READY`、链接状态为`AVAILABLE`；ASRAY数据库确认两个账号均为`DEMO_FULL`，各有`SIM_CORE_WORKFLOW`、`SIM_TEST_EVIDENCE`、`SIM_MANAGEMENT_OPERATIONS`三项有效权益并加入`EXT-TRAINING`。测试临时管理员已清理，既有管理员未修改。
 
 以下测试尚不充分或尚不存在：
 

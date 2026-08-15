@@ -39,7 +39,7 @@ public interface PortalDeliveryRepository extends JpaRepository<PortalDelivery, 
     @Query("select d from PortalDelivery d join fetch d.customer where d.id = :id")
     Optional<PortalDelivery> findDetailByIdForUpdate(@Param("id") UUID id);
 
-    long countByDeliveryNoStartingWith(String prefix);
+    boolean existsByDeliveryNo(String deliveryNo);
 
     long countByStatus(DeliveryStatus status);
 }

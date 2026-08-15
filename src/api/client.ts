@@ -214,7 +214,7 @@ export function archivePackageRelease(id: string) {
   return adminRequest<PackageRelease>(`/api/v1/admin/package-releases/${id}/archive`, { method: 'POST' })
 }
 
-export function createDelivery(payload: { customerCode: string; customerName: string; packageReleaseId: string; expiresAt: string; downloadLimit: number }) {
+export function createDelivery(payload: { customerName: string; packageReleaseId: string; expiresAt: string; downloadLimit: number }) {
   return adminRequest<AdminDelivery>('/api/v1/admin/deliveries', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   })

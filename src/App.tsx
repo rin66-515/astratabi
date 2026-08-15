@@ -548,7 +548,6 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [summary, setSummary] = useState<DeliverySummaryCounts>({ total: 0, issued: 0, preparing: 0, revoked: 0 })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [events, setEvents] = useState<DeliveryEvent[]>([])
-  const [customerCode, setCustomerCode] = useState('C001')
   const [customerName, setCustomerName] = useState('')
   const [packageReleaseId, setPackageReleaseId] = useState('')
   const [archiveFile, setArchiveFile] = useState<File | null>(null)
@@ -624,7 +623,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
     setLinkCopyNotice('')
     try {
       if (!packageReleaseId) throw new Error('请先上传并选择一个有效资料包版本。')
-      const created = await createDelivery({ customerCode: customerCode.trim(), customerName: customerName.trim(), packageReleaseId, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
+      const created = await createDelivery({ customerName: customerName.trim(), packageReleaseId, expiresAt: `${expiresAt}T23:59:59+09:00`, downloadLimit: Number(downloadLimit) })
       const issued = await issueDelivery(created.id)
       setIssuedLink({ deliveryId: created.id, url: issued.deliveryLink })
       setNotice('已创建交付并生成专属链接。资料包生成完成前，客户页面会显示“准备中”。')
@@ -751,7 +750,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
       <div className="admin-panel-heading"><div><p className="status">新建交付</p><h3>生成客户专属链接</h3></div><span>真实 API</span></div>
       <form className="admin-form" onSubmit={submitDelivery}>
         <div className="admin-form-grid">
-          <label className="admin-field">客户编号<input value={customerCode} onChange={(event) => setCustomerCode(event.target.value)} placeholder="例：C001" /></label>
+          <div className="admin-field admin-fixed-field"><span>客户编号</span><strong>提交后由服务器自动生成</strong></div>
           <label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label>
           <div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div>
           <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>{release.baseName} / v{release.version} / {release.releaseDate}</option>)}</select></label>

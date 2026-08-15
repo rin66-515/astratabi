@@ -1,7 +1,7 @@
 # AstraTabi Portal：交付后台基本设计书
 
-- 版本：0.4
-- 日期：2026-08-07
+- 版本：0.5
+- 日期：2026-08-16
 - 状态：客户密码、加密资料包、真实下载与ASRAY账号联动已完成本地验证；生产发布未判定
 - 适用范围：AstraTabi 的资料包人工确认收款、客户专属链接交付与单管理员运营
 
@@ -30,7 +30,8 @@
 ```text
 小红书 / 抖音内容 → 公开资料页 → 微信人工沟通与付款
 → 管理员上传 ZIP 与 SHA-256，登记不可变母版版本
-→ 管理员确认收款 → 选择母版版本并建立交付、生成专属令牌
+→ 管理员确认收款 → 输入客户显示名并选择母版版本
+→ 服务端按本次购买自动生成客户编号与交付编号、建立交付并生成专属令牌
 → 服务端生成客户水印副本
 → 管理员复制链接，通过微信发送
 → 客户打开链接 → 服务端校验 → 下载并记录日志
@@ -50,6 +51,8 @@
 任何状态迁移均由后端事务执行，并写入审计日志；前端仅展示结果。
 
 当前实现中，管理员创建交付后可生成专属链接，状态进入`PREPARING`。客户设置资料密码并成功生成加密ZIP后，系统将`package_ready=true`、状态切换为`ISSUED`。此后允许签发下载票据，并在首次取得真实文件流时扣减下载次数。
+
+本期采用购买单元管理：每次购买均新建一条`portal_customer`和一条`portal_delivery`，并开通一个独立ASRAY账号。客户显示名允许重复，系统不以姓名、手机号或微信号判断是否为同一人；订单统计以`portal_delivery`为基本单位，取消订单可按`status <> 'CANCELLED'`从有效订单数中排除。
 
 ## 3. 权限与认证
 
@@ -82,7 +85,7 @@
 | 表 | 主要字段 | 用途 |
 |---|---|---|
 | `portal_admin_user` | `admin_id`、`login_id`、`password_hash`、`enabled`、`last_login_at` | 单管理员账户 |
-| `portal_customer` | `customer_id`、`customer_code`、`display_name`、`wechat_contact`、`created_at` | 客户和微信联系信息 |
+| `portal_customer` | `customer_id`、`customer_code`、`display_name`、`wechat_contact`、`created_at` | 购买单元的客户表示；同一购买者再次购买时另建记录 |
 | `portal_package_release` | `package_release_id`、`project_code`、`product_id`、`version`、`release_date`、`file_name`、`storage_key`、`sha256`、`status` | 经校验的不可变母版 ZIP 版本 |
 | `portal_delivery` | `delivery_id`、`delivery_no`、`customer_id`、`package_release_id`、`project_code`、`status`、`expires_at`、`download_limit`、`download_count`、`watermark_text` | 一次交付的主记录；旧数据允许母版外键为空 |
 | `portal_delivery_package` | `package_id`、`delivery_id`、`source_object_key`、`delivered_object_key`、`file_name`、`sha256`、`generation_status` | 原始资料与客户水印副本 |
@@ -93,11 +96,12 @@
 
 ### 4.1 关键约束
 
-- `delivery_no` 唯一，例如：`DL-20260726-C001-0001`。
-- `customer_code` 唯一，例如：`C001`。
+- `customer_code`由服务端按购买自动生成，格式为`BUY-{JST业务日YYYYMMDD}-{12位易读随机码}`，全表唯一；不接受前端指定。
+- `delivery_no`与本次客户编号共用日期和随机部分，格式为`DL-{JST业务日YYYYMMDD}-{12位易读随机码}`，全表唯一。
+- 易读随机码使用密码学安全随机数，并排除`0`、`1`、`I`、`O`等易混淆字符；生成冲突时最多重试16次，数据库唯一约束作为最终保护。
 - 同一 `token_hash` 唯一；撤销后不得再次启用同一令牌。
 - `download_count <= download_limit` 由数据库事务和行锁保证。
-- `watermark_text` 在发放时固定，例如：`ASRAY / C001 / DL-20260726-C001-0001`；之后不因客户资料修改而变化。
+- `watermark_text` 在发放时固定，例如：`ASRAY / BUY-20260816-5KXFF5F4E4YG / DL-20260816-5KXFF5F4E4YG`；之后不因客户资料修改而变化。
 - 原始对象与交付对象均使用私有存储路径；数据库仅保存对象键，不保存公网文件 URL。
 - 母版 ZIP 文件名格式为 `ASRAY_COMPLETE_v{SemVer}_{YYYYMMDD}.zip`，并必须同时上传同名 `.sha256`。
 - 服务端重新计算 SHA-256；同名同哈希视为幂等，同名异哈希或同版本/发布日期异文件一律拒绝覆盖。
@@ -118,7 +122,7 @@
 | `GET` | `/api/v1/admin/package-releases` | 查询有效/归档母版版本 |
 | `POST` | `/api/v1/admin/package-releases` | 同时上传 ZIP 与 `.sha256`，校验后登记不可变版本 |
 | `POST` | `/api/v1/admin/package-releases/{id}/archive` | 逻辑归档母版；不删除文件 |
-| `POST` | `/api/v1/admin/deliveries` | 选择一个 `ACTIVE packageReleaseId` 建立 `DRAFT` 交付记录 |
+| `POST` | `/api/v1/admin/deliveries` | 接收`customerName`、`packageReleaseId`、`expiresAt`、`downloadLimit`；服务端自动编号并建立`DRAFT`交付记录 |
 | `POST` | `/api/v1/admin/deliveries/{id}/issue` | 生成水印副本、令牌与可复制专属链接 |
 | `POST` | `/api/v1/admin/deliveries/{id}/extend` | 延长有效期 |
 | `POST` | `/api/v1/admin/deliveries/{id}/reissue` | 撤销旧令牌并发放新链接 |
@@ -143,8 +147,8 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 ### 6.1 生成规则
 
 1. 管理员先上传不可变母版 ZIP 与 `.sha256`，服务端完成文件名、哈希和 ZIP 安全校验。
-2. 管理员确认收款后选择一个 `ACTIVE` 母版版本创建 `DRAFT` 交付。
-3. 服务端分配 `delivery_no` 并固定母版外键、文件名和 `watermark_text`。
+2. 管理员确认收款后输入客户显示名并选择一个 `ACTIVE` 母版版本创建 `DRAFT` 交付；前端不输入客户编号。
+3. 服务端按本次购买分配`customer_code`和`delivery_no`，新建购买单元客户记录，并固定母版外键、文件名和`watermark_text`。
 4. 客户通过专属链接设置12～64位资料打开密码；密码只在本次请求内存中使用，不写数据库或日志。
 5. 服务端从母版生成客户专属副本，在每个Excel Sheet页脚写入客户编号与交付编号，并执行OOXML Agile加密。
 6. 将生成后的副本打包为ZIP，计算SHA-256并原子移动到私有存储；成功后更新为`ISSUED + READY`。
@@ -215,6 +219,13 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 - 真实ZIP流、一次性票据与首次取流计次已实现；网络层不伪造客户端保存完成事件。
 - ASRAY HMAC幂等开通、Activation URL密文保存、一次性激活与单会话已完成本地跨系统验证。
 - 正式域名、TLS、对象存储、正式客户UAT、备份恢复和生产Go/No-Go仍未实施。
+
+### 10.3 购买单元自动编号（更新：2026-08-16）
+
+- 管理台不再要求客服手工输入客户编号；编号与交付编号由服务端按JST业务日和安全随机码生成。
+- 同一客户显示名连续购买时，每次建立独立客户记录、交付记录、客户专属包和ASRAY账号；不进行跨订单账号复用。
+- 本地真实API以同一显示名连续建立两笔交付，两个客户编号、交付编号和ASRAY账号均不重复；两份专属包达到`READY`，ASRAY侧`DEMO_FULL`三项权益与共用训练案件成员资格均已确认。
+- 生产环境支付订单号、退款对账和客户主档合并仍未实施；当前订单量直接以交付表统计。
 
 ## 9. 待决事项
 

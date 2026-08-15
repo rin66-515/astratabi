@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -32,6 +32,11 @@ public class DeliveryService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String PROJECT_NAME = "ASRAY 勤怠・承認管理システム";
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Tokyo");
+    private static final char[] PURCHASE_CODE_ALPHABET =
+            "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
+    private static final int PURCHASE_CODE_RANDOM_LENGTH = 12;
+    private static final int PURCHASE_CODE_GENERATION_ATTEMPTS = 16;
 
     private final PortalCustomerRepository customerRepository;
     private final PortalDeliveryRepository deliveryRepository;
@@ -65,17 +70,41 @@ public class DeliveryService {
     @Transactional
     public AdminDeliveryResponse create(CreateDeliveryRequest request, String actorId) {
         PortalPackageRelease packageRelease = packageReleaseService.requireActive(request.packageReleaseId());
-        String customerCode = request.customerCode().trim().toUpperCase();
-        PortalCustomer customer = customerRepository.findByCustomerCode(customerCode)
-                .orElseGet(() -> customerRepository.save(PortalCustomer.create(customerCode, request.customerName().trim())));
-        String prefix = "DL-" + LocalDate.now(ZoneOffset.UTC).toString().replace("-", "") + "-" + customerCode + "-";
-        String deliveryNo = prefix + String.format("%04d", deliveryRepository.countByDeliveryNoStartingWith(prefix) + 1);
+        PurchaseReference reference = generatePurchaseReference();
+        PortalCustomer customer = customerRepository.save(
+                PortalCustomer.create(reference.customerCode(), request.customerName().trim()));
+        String deliveryNo = reference.deliveryNo();
         PortalDelivery delivery = deliveryRepository.save(PortalDelivery.create(deliveryNo, customer, packageRelease, request.expiresAt(), request.downloadLimit()));
         deliveryPackageRepository.save(PortalDeliveryPackage.create(
                 delivery, packageRelease.storageKey(), Instant.now()));
         auditService.record("ADMIN", actorId, "DELIVERY_CREATED", "DELIVERY", delivery.id().toString(), null,
-                "{\"deliveryNo\":\"" + delivery.deliveryNo() + "\",\"status\":\"DRAFT\"}");
+                "{\"deliveryNo\":\"" + delivery.deliveryNo() + "\",\"customerCode\":\""
+                        + customer.customerCode() + "\",\"status\":\"DRAFT\"}");
         return AdminDeliveryResponse.from(delivery);
+    }
+
+    private PurchaseReference generatePurchaseReference() {
+        String businessDate = LocalDate.now(BUSINESS_ZONE).toString().replace("-", "");
+        for (int attempt = 0; attempt < PURCHASE_CODE_GENERATION_ATTEMPTS; attempt++) {
+            String randomPart = generateReadableRandom(PURCHASE_CODE_RANDOM_LENGTH);
+            String customerCode = "BUY-" + businessDate + "-" + randomPart;
+            String deliveryNo = "DL-" + businessDate + "-" + randomPart;
+            if (!customerRepository.existsByCustomerCode(customerCode)
+                    && !deliveryRepository.existsByDeliveryNo(deliveryNo)) {
+                return new PurchaseReference(customerCode, deliveryNo);
+            }
+        }
+        throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PURCHASE_CODE_GENERATION_FAILED",
+                "購入管理番号を生成できませんでした。時間をおいて再試行してください。");
+    }
+
+    private static String generateReadableRandom(int length) {
+        StringBuilder value = new StringBuilder(length);
+        for (int index = 0; index < length; index++) {
+            value.append(PURCHASE_CODE_ALPHABET[
+                    SECURE_RANDOM.nextInt(PURCHASE_CODE_ALPHABET.length)]);
+        }
+        return value.toString();
     }
 
     @Transactional(readOnly = true)
@@ -280,7 +309,10 @@ public class DeliveryService {
         return request.getRemoteAddr();
     }
 
-    public record CreateDeliveryRequest(String customerCode, String customerName, UUID packageReleaseId, Instant expiresAt, int downloadLimit) {
+    public record CreateDeliveryRequest(String customerName, UUID packageReleaseId, Instant expiresAt, int downloadLimit) {
+    }
+
+    private record PurchaseReference(String customerCode, String deliveryNo) {
     }
 
     public record AdminDeliveryResponse(UUID id, String deliveryNo, String customerCode, String customerName, String projectName,
