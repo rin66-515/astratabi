@@ -43,7 +43,9 @@ class PackageReleaseServiceTest {
                 new PortalProperties.Security("test-pepper",
                         "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", false, 15, 5),
                 new PortalProperties.PackageStorage(root.toString(),
-                        "ASRAY_COMPLETE,ASRAY_ROLE_DEVELOPER,ASRAY_ROLE_TEST,ASRAY_ROLE_OPERATIONS,ASRAY_ROLE_PM_PL",
+                        "ASRAY_COMPLETE,ASRAY_DOCS_COMPLETE,ASRAY_DESIGN_EXAMPLES,ASRAY_REQUIREMENTS_COMMUNICATION,"
+                                + "ASRAY_INCIDENT_BUG_REPORT,ASRAY_TEST_SPEC_EVIDENCE,ASRAY_PM_RELEASE_OPERATIONS,"
+                                + "ASRAY_ROLE_DEVELOPER,ASRAY_ROLE_TEST,ASRAY_ROLE_OPERATIONS,ASRAY_ROLE_PM_PL",
                         10_000_000, 100, 50_000_000),
                 new PortalProperties.Asray(false, "http://asray", "client", "secret", ""));
         service = new PackageReleaseService(repository, auditService, properties);
@@ -89,6 +91,44 @@ class PackageReleaseServiceTest {
                 "ASRAY", baseName, "1.0.0", java.time.LocalDate.of(2026, 8, 9));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "综合完整商品,ASRAY_COMPLETE,DEMO_FULL",
+            "日本IT项目完整仿真资料包,ASRAY_DOCS_COMPLETE,DEMO_BASIC",
+            "基本设计书・详细设计书范例,ASRAY_DESIGN_EXAMPLES,DEMO_BASIC",
+            "需求确认与客户沟通范例,ASRAY_REQUIREMENTS_COMMUNICATION,DEMO_BASIC",
+            "障害报告・Bug报告范例,ASRAY_INCIDENT_BUG_REPORT,DEMO_BASIC",
+            "测试式样书・证迹范例,ASRAY_TEST_SPEC_EVIDENCE,DEMO_TEST",
+            "项目管理・上线・运维资料包,ASRAY_PM_RELEASE_OPERATIONS,DEMO_MANAGEMENT",
+            "开发岗位专属包,ASRAY_ROLE_DEVELOPER,DEMO_TEST",
+            "测试岗位专属包,ASRAY_ROLE_TEST,DEMO_TEST",
+            "运维岗位专属包,ASRAY_ROLE_OPERATIONS,DEMO_MANAGEMENT",
+            "PM・PL岗位专属包,ASRAY_ROLE_PM_PL,DEMO_MANAGEMENT"
+    })
+    void uploadsRegisteredChineseSalesNameWithInternalProductId(
+            String salesName, String baseName, String expectedProductId) throws Exception {
+        String fileName = salesName + "_" + baseName + "_v1.0.0_20260816.zip";
+        byte[] zip = zip("documents/README.txt", baseName);
+
+        PackageReleaseService.UploadResponse result = service.upload(
+                archive(fileName, zip), checksum(fileName, sha256(zip)), "admin-001");
+
+        assertThat(result.release().fileName()).isEqualTo(fileName);
+        assertThat(result.release().baseName()).isEqualTo(baseName);
+        assertThat(result.release().productId()).isEqualTo(expectedProductId);
+    }
+
+    @Test
+    void rejectsUnregisteredChineseSalesName() throws Exception {
+        String fileName = "任意商品_ASRAY_COMPLETE_v1.0.0_20260816.zip";
+        byte[] zip = zip("documents/README.txt", "unsupported alias");
+
+        assertThatThrownBy(() -> service.upload(
+                archive(fileName, zip), checksum(fileName, sha256(zip)), "admin-001"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("PACKAGE_FILE_NAME_INVALID"));
+    }
+
     @Test
     void rejectsChecksumMismatch() throws Exception {
         String fileName = "ASRAY_COMPLETE_v0.0.0_20260801.zip";
@@ -132,7 +172,7 @@ class PackageReleaseServiceTest {
 
     private MockMultipartFile checksum(String fileName, String sha256) {
         String content = sha256 + "  " + fileName + System.lineSeparator();
-        return new MockMultipartFile("checksum", fileName + ".sha256", "text/plain", content.getBytes(StandardCharsets.US_ASCII));
+        return new MockMultipartFile("checksum", fileName + ".sha256", "text/plain", content.getBytes(StandardCharsets.UTF_8));
     }
 
     private byte[] zip(String entryName, String content) throws Exception {

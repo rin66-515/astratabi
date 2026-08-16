@@ -27,6 +27,7 @@ import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -41,6 +42,18 @@ public class PackageReleaseService {
     private static final int CHECKSUM_FILE_LIMIT = 8192;
     private static final long ZIP_RATIO_CHECK_THRESHOLD = 20L * 1024 * 1024;
     private static final long MAX_COMPRESSION_RATIO = 100;
+    private static final Map<String, String> SALES_NAME_BY_BASE_NAME = Map.ofEntries(
+            Map.entry("ASRAY_COMPLETE", "综合完整商品"),
+            Map.entry("ASRAY_DOCS_COMPLETE", "日本IT项目完整仿真资料包"),
+            Map.entry("ASRAY_DESIGN_EXAMPLES", "基本设计书・详细设计书范例"),
+            Map.entry("ASRAY_REQUIREMENTS_COMMUNICATION", "需求确认与客户沟通范例"),
+            Map.entry("ASRAY_INCIDENT_BUG_REPORT", "障害报告・Bug报告范例"),
+            Map.entry("ASRAY_TEST_SPEC_EVIDENCE", "测试式样书・证迹范例"),
+            Map.entry("ASRAY_PM_RELEASE_OPERATIONS", "项目管理・上线・运维资料包"),
+            Map.entry("ASRAY_ROLE_DEVELOPER", "开发岗位专属包"),
+            Map.entry("ASRAY_ROLE_TEST", "测试岗位专属包"),
+            Map.entry("ASRAY_ROLE_OPERATIONS", "运维岗位专属包"),
+            Map.entry("ASRAY_ROLE_PM_PL", "PM・PL岗位专属包"));
 
     private final PortalPackageReleaseRepository repository;
     private final AuditService auditService;
@@ -133,7 +146,7 @@ public class PackageReleaseService {
 
             try {
                 Files.writeString(finalChecksum, actualSha256 + "  " + fileName + System.lineSeparator(),
-                        StandardCharsets.US_ASCII, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                        StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
                 PortalPackageRelease saved = repository.saveAndFlush(PortalPackageRelease.create(
                         PROJECT_CODE, parts.baseName(), productId(parts.baseName()), parts.version(), parts.releaseDate(), fileName,
                         archiveKey, checksumKey, actualSha256, Files.size(finalArchive), actorId));
@@ -171,15 +184,24 @@ public class PackageReleaseService {
     private FilenameParts parseFileName(String fileName) {
         List<String> configuredBaseNames = List.of(properties.packageStorage().allowedBaseName().split(","))
                 .stream().map(String::trim).filter(value -> !value.isBlank()).toList();
-        String baseNamePattern = configuredBaseNames.stream().map(Pattern::quote)
-                .collect(java.util.stream.Collectors.joining("|"));
-        Pattern pattern = Pattern.compile("^(" + baseNamePattern + ")_v(\\d+\\.\\d+\\.\\d+)_(\\d{8})\\.zip$");
+        Pattern pattern = Pattern.compile("^(.+)_v(\\d+\\.\\d+\\.\\d+)_(\\d{8})\\.zip$");
         Matcher matcher = pattern.matcher(fileName);
         if (!matcher.matches()) {
             throw badRequest("PACKAGE_FILE_NAME_INVALID", "ZIP 文件名必须符合已登记商品名_v1.0.0_YYYYMMDD.zip。" );
         }
+        String fileStem = matcher.group(1);
+        String baseName = configuredBaseNames.stream()
+                .filter(candidate -> {
+                    String salesName = SALES_NAME_BY_BASE_NAME.get(candidate);
+                    return fileStem.equals(candidate)
+                            || salesName != null && fileStem.equals(salesName + "_" + candidate);
+                })
+                .findFirst()
+                .orElseThrow(() -> badRequest(
+                        "PACKAGE_FILE_NAME_INVALID",
+                        "ZIP 文件名中的中文售卖名与内部商品编号不匹配。"));
         try {
-            return new FilenameParts(matcher.group(1), matcher.group(2), LocalDate.parse(matcher.group(3), DateTimeFormatter.BASIC_ISO_DATE));
+            return new FilenameParts(baseName, matcher.group(2), LocalDate.parse(matcher.group(3), DateTimeFormatter.BASIC_ISO_DATE));
         } catch (DateTimeParseException exception) {
             throw badRequest("PACKAGE_RELEASE_DATE_INVALID", "ZIP 文件名中的日期无效。");
         }
@@ -187,7 +209,7 @@ public class PackageReleaseService {
 
     private ChecksumParts parseChecksum(MultipartFile checksum, String expectedFileName) {
         try {
-            String content = new String(checksum.getBytes(), StandardCharsets.US_ASCII).trim();
+            String content = new String(checksum.getBytes(), StandardCharsets.UTF_8).trim();
             Matcher matcher = Pattern.compile("(?i)^([a-f0-9]{64})\\s+\\*?(.+)$").matcher(content);
             if (!matcher.matches() || !matcher.group(2).trim().equals(expectedFileName)) {
                 throw badRequest("PACKAGE_CHECKSUM_INVALID", ".sha256 内容必须为‘64 位哈希值  ZIP 文件名’。");
