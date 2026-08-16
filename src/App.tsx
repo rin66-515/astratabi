@@ -285,7 +285,7 @@ function ShopSignature({ children }: { children: string }) {
 }
 
 function Tavern() {
-  return <section className="section room-section soft-section"><RoomHeading number="01" title="酒桌" description="坐下来以后，不必急着谈正事。这里留下日常、工作、旅行与偶尔冒出来的念头。" />
+  return <section className="section room-section soft-section"><RoomHeading number="01" title="酒桌" description="我与我周旋，宁做我。" />
     <div className="diary-list">{diary.map((entry) => <article className="diary-card" key={entry.date}><div><span>{entry.date}</span><em>{entry.tag}</em></div><p>{entry.text}</p></article>)}</div>
     <ShopSignature>记</ShopSignature>
     <UnderRenovation room="酒桌的里间">旧日记和旅途见闻仍在整理，眼下先留几句话作陪。</UnderRenovation>
