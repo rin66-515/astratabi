@@ -31,6 +31,7 @@ export type PackageRelease = {
   id: string
   projectCode: string
   baseName: string
+  salesName: string
   productId: string
   version: string
   releaseDate: string

@@ -115,6 +115,7 @@ class PackageReleaseServiceTest {
 
         assertThat(result.release().fileName()).isEqualTo(fileName);
         assertThat(result.release().baseName()).isEqualTo(baseName);
+        assertThat(result.release().salesName()).isEqualTo(salesName);
         assertThat(result.release().productId()).isEqualTo(expectedProductId);
     }
 

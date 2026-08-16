@@ -806,7 +806,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
           <div className="admin-field admin-fixed-field"><span>客户编号</span><strong>提交后由服务器自动生成</strong></div>
           <label className="admin-field">客户名称<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="例：株式会社サンプル" /></label>
           <div className="admin-field admin-fixed-field"><span>项目名称</span><strong>ASRAY 勤怠・承認管理システム</strong></div>
-          <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>{release.baseName} / v{release.version} / {release.releaseDate}</option>)}</select></label>
+          <label className="admin-field">资料包版本<select value={packageReleaseId} onChange={(event) => setPackageReleaseId(event.target.value)}><option value="">请选择有效版本</option>{activeReleases.map((release) => <option value={release.id} key={release.id}>{release.salesName}（{release.baseName}）/ v{release.version} / {release.releaseDate}</option>)}</select></label>
           <div className="admin-field admin-fixed-field"><span>水印文本</span><strong>交付编号生成后由服务器固定</strong></div>
           <label className="admin-field">有效期<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
           <label className="admin-field">下载次数<select value={downloadLimit} onChange={(event) => setDownloadLimit(event.target.value)}><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option></select></label>

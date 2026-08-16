@@ -381,12 +381,15 @@ public class PackageReleaseService {
     public record UploadResponse(PackageReleaseResponse release, boolean duplicate) {
     }
 
-    public record PackageReleaseResponse(UUID id, String projectCode, String baseName, String productId, String version,
+    public record PackageReleaseResponse(UUID id, String projectCode, String baseName, String salesName,
+                                         String productId, String version,
                                          LocalDate releaseDate, String fileName, String sha256, long fileSize,
                                          PackageReleaseStatus status, String uploadedBy, Instant uploadedAt,
                                          Instant archivedAt) {
         static PackageReleaseResponse from(PortalPackageRelease release) {
-            return new PackageReleaseResponse(release.id(), release.projectCode(), release.baseName(), release.productId(), release.version(),
+            return new PackageReleaseResponse(release.id(), release.projectCode(), release.baseName(),
+                    SALES_NAME_BY_BASE_NAME.getOrDefault(release.baseName(), release.baseName()),
+                    release.productId(), release.version(),
                     release.releaseDate(), release.fileName(), release.sha256(), release.fileSize(), release.status(),
                     release.uploadedBy(), release.uploadedAt(), release.archivedAt());
         }
