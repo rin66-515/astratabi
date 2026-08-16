@@ -23,32 +23,25 @@ public class AsrayProvisioningService {
 
     private final PortalProperties properties;
     private final PortalAsrayProvisioningRepository repository;
-    private final ActivationUrlCipher cipher;
     private final ObjectMapper objectMapper;
 
     public AsrayProvisioningService(
             PortalProperties properties,
             PortalAsrayProvisioningRepository repository,
-            ActivationUrlCipher cipher,
             ObjectMapper objectMapper) {
         this.properties = properties;
         this.repository = repository;
-        this.cipher = cipher;
         this.objectMapper = objectMapper;
     }
 
-    public ProvisioningResult provision(PortalDelivery delivery) {
+    public ProvisioningResult provision(PortalDelivery delivery, String initialPassword) {
         Instant now = Instant.now();
         PortalAsrayProvisioning state = repository.findByDelivery_Id(delivery.id())
                 .orElseGet(() -> repository.save(PortalAsrayProvisioning.create(
                         delivery, deterministicEventId(delivery.id()), now)));
-        if (state.status() == ProvisioningStatus.COMPLETED) {
-            return new ProvisioningResult(
-                    state.asrayUserId(), cipher.decrypt(state.activationUrlCiphertext()), "COMPLETED");
-        }
         if (!properties.asray().enabled()) {
             state.disabled(now);
-            return new ProvisioningResult(null, null, "DISABLED");
+            return new ProvisioningResult(null, "DISABLED");
         }
 
         state.processing(now);
@@ -70,7 +63,8 @@ public class AsrayProvisioningService {
                 List.of(productId),
                 entitlements,
                 delivery.expiresAt(),
-                1));
+                1,
+                initialPassword));
         String timestamp = Instant.now().toString();
         String nonce = UUID.randomUUID().toString();
         String canonical = String.join("\n", "POST", PATH, timestamp, nonce, sha256(body));
@@ -88,13 +82,13 @@ public class AsrayProvisioningService {
                     .body(body)
                     .retrieve()
                     .body(ProvisionResponse.class);
-            if (response == null || response.userId() == null || response.activationUrl() == null
+            if (response == null || response.userId() == null || !"ACTIVE".equals(response.status())
                     || !entitlements.equals(response.entitlements())) {
                 throw new IllegalStateException("ASRAY response is incomplete");
             }
-            state.completed(response.userId(), cipher.encrypt(response.activationUrl()), Instant.now());
+            state.completed(response.userId(), null, response.status(), Instant.now());
             repository.saveAndFlush(state);
-            return new ProvisioningResult(response.userId(), response.activationUrl(), response.status());
+            return new ProvisioningResult(response.userId(), response.status());
         } catch (RuntimeException exception) {
             state.failed("ASRAY_PROVISIONING_FAILED", Instant.now());
             repository.saveAndFlush(state);
@@ -134,13 +128,14 @@ public class AsrayProvisioningService {
             List<String> productIds,
             List<String> entitlements,
             Instant expiresAt,
-            int maxConcurrentSessions) {
+            int maxConcurrentSessions,
+            String initialPassword) {
     }
 
     record ProvisionResponse(UUID eventId, String userId, String status, String activationUrl,
                              List<String> entitlements) {
     }
 
-    public record ProvisioningResult(String userId, String activationUrl, String status) {
+    public record ProvisioningResult(String userId, String status) {
     }
 }

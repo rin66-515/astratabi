@@ -13,6 +13,8 @@ export type DeliverySummary = {
   remainingDownloads: number
   packageName: string
   message: string
+  asrayUserId: string | null
+  asrayAccountStatus: string | null
 }
 
 export type DeliveryLookup =
@@ -112,6 +114,8 @@ function toDeliverySummary(payload: PublicDeliveryPayload): DeliverySummary {
     remainingDownloads: payload.remainingDownloads,
     packageName: payload.packageName,
     message: payload.message,
+    asrayUserId: payload.asrayUserId,
+    asrayAccountStatus: payload.asrayAccountStatus,
   }
 }
 
@@ -124,6 +128,8 @@ type PublicDeliveryPayload = {
   remainingDownloads: number
   packageName: string
   message: string
+  asrayUserId: string | null
+  asrayAccountStatus: string | null
 }
 
 export async function getDeliveryByToken(token: string): Promise<DeliveryLookup> {
@@ -149,7 +155,7 @@ export type CustomerPackageResult = {
   sha256: string
   encryptedWorkbookCount: number
   asrayUserId: string | null
-  asrayActivationUrl: string | null
+  asrayAccountStatus: string | null
 }
 
 export function setDocumentPassword(token: string, password: string, passwordConfirmation: string) {

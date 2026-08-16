@@ -5,6 +5,7 @@ import com.astratabi.delivery.config.PortalProperties;
 import com.astratabi.delivery.packagefile.PackageReleaseService;
 import com.astratabi.delivery.packagefile.PortalDeliveryPackageRepository;
 import com.astratabi.delivery.packagefile.PortalPackageRelease;
+import com.astratabi.delivery.provisioning.PortalAsrayProvisioningRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -44,6 +45,7 @@ class DeliveryServiceLinkDetailTest {
                 properties,
                 mock(PackageReleaseService.class),
                 mock(PortalDeliveryPackageRepository.class),
+                mock(PortalAsrayProvisioningRepository.class),
                 cipher);
 
         PortalPackageRelease release = PortalPackageRelease.create(

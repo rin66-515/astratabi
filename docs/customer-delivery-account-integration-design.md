@@ -4,7 +4,7 @@
 
 AstraTabi在客服确认收款并建立交付后，让持有专属交付链接的客户设置“资料打开密码”。系统从不可变母版生成客户水印副本，对全部`.xlsx`执行OOXML Agile加密，打包为客户专属ZIP并计算SHA-256；只有生成成功后才进入`ISSUED`并允许真实下载。
 
-资料打开密码与ASRAY登录密码分离。AstraTabi不接收、保存或转发ASRAY登录密码；ASRAY不接收资料打开密码、支付资料或客户联系方式。
+初版采用共通密码方式：客户在取件页设置的资料打开密码，同时作为本次购买所开通ASRAY账号的初始登录密码。AstraTabi只在该请求处理期间使用并通过已签名的内部API转交，不写入DB、日志或审计；ASRAY收到后立即进行Argon2哈希，只保存哈希值。支付资料、客户联系方式及密码原文不进入ASRAY持久层。
 
 ## 2. 交付流程
 
@@ -17,8 +17,8 @@ flowchart TD
     E --> F[写入客户编号和交付编号水印]
     F --> G[逐个执行XLSX Agile加密]
     G --> H[生成客户ZIP和SHA-256]
-    H --> I[调用ASRAY账号开通内部API]
-    I --> J[保存账号状态和短期Activation链接密文]
+    H --> I[携带同一密码调用ASRAY账号开通内部API]
+    I --> J[ASRAY哈希密码并创建ACTIVE账号]
     J --> K[ISSUED / READY]
     K --> L[签发一次性下载票据]
     L --> M[流式下载并记录事件]
@@ -30,8 +30,9 @@ flowchart TD
 - 至少包含字母和数字
 - 客户输入两次，后端再次核对
 - 仅在本次生成请求内存中使用，不写入DB、日志、审计、文件名或API响应
-- 忘记密码时无法找回，只能废弃旧交付副本并重新生成
+- 忘记密码时无法从系统取回原文；资料副本需要重新生成，ASRAY账号需要另行执行密码重设
 - 同一次交付内所有Excel使用同一个资料密码
+- 同一密码作为该次购买开通的ASRAY账号初始登录密码；页面必须明确提示共用范围
 
 Java String无法主动擦除，因此禁止将Request、DTO或异常对象整体写入日志；生成过程不持久化密码，以缩短暴露窗口。
 
@@ -52,7 +53,7 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 |---|---|---|
 | `portal_package_release.product_id` | 商品ID | 由受控母版文件名前缀映射 |
 | `portal_delivery_package` | source/delivered key、fileName、SHA-256、size、encrypted count、generation status | 每次交付一个客户副本 |
-| `portal_asray_provisioning` | eventId、status、userId、activation ciphertext、attempt/error | ASRAY账号开通结果 |
+| `portal_asray_provisioning` | eventId、status、userId、account status、legacy activation ciphertext、attempt/error | ASRAY账号开通结果；Activation密文仅用于既有待激活账号兼容 |
 
 生成Status：`WAITING_PASSWORD`、`PROCESSING`、`READY`、`FAILED`。
 
@@ -70,10 +71,12 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 
 - 在客户ZIP生成成功后，以Server-to-Server方式调用`POST /internal/v1/customer-accounts`
 - Header使用Client ID、UTC Timestamp、Nonce、HMAC-SHA256签名
-- Payload只包含eventId、customerCode、deliveryNo、productIds、entitlements、expiresAt和并发会话数
-- 不发送真实姓名、微信、电话、付款截图、资料密码或ASRAY登录密码
+- Payload包含eventId、customerCode、deliveryNo、productIds、entitlements、expiresAt、并发会话数及本次请求内的初始密码
+- 不发送真实姓名、微信、电话或付款截图；密码原文只存在于TLS／受控内部网络上的HMAC签名请求体，不写日志和持久层
 - Event ID保持幂等；调用失败不破坏已经生成的客户文件，但标记`FAILED`供管理员重试
-- Activation URL使用AES-GCM和独立环境密钥短期加密保存；页面只在有效交付Token下显示
+- HMAC签名覆盖包含密码的完整请求体；Event幂等摘要排除密码字段，避免保存可用于离线猜测的密码相关摘要
+- 新账号直接返回`ACTIVE`且不生成Activation URL。既有`PENDING_ACTIVATION`账号用同一Event重试时设置密码、转为`ACTIVE`并使旧Activation token失效
+- 已是`ACTIVE`的同一Event重试只返回原账号，不重设密码
 - ASRAY新规发行的User ID为`asr-`加8位易读随机码；AstraTabi将User ID视为不透明字符串，不按Prefix或长度判断
 - 已发行的`ext-`形式继续原样保存和显示，不触发再发行或Migration
 
@@ -95,8 +98,18 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 - ZIP与DB SHA-256一致，未混入临时文件或明文密码
 - 生成失败不进入`ISSUED`，可安全重试
 - 同一票据只能流式下载一次，次数并发控制正确
-- ASRAY重复Event不产生重复账号；联动失败可重试
+- ASRAY重复Event不产生重复账号；`ACTIVE`重试不改变密码；既有`PENDING_ACTIVATION`可用本次密码完成开通
 - 审计和应用日志中不存在密码、原始Token、Activation URL或本地路径
+
+## 15. 共通密码直接开通补足（实装完成：2026-08-16）
+
+- 新规购买不再要求客户跳转到ASRAY Activation画面；资料密码设置成功后账号即为`ACTIVE`。
+- Portal公开领取响应保存并返回ASRAY账号状态，刷新页面后仍显示User ID，不再依赖前端临时状态。
+- 既有客户包已`READY`但账号仍为`PENDING_ACTIVATION`时，领取页显示补录表单；客户重新输入预定共通密码后完成开通，不重新生成账号或重复付权。
+- 旧`/activate`接口、Activation table及既有未使用token继续保留；直接开通成功时将对应旧token标记为使用済，防止之后再次设置密码。
+- 本变更优先减少客户密码混淆。共通密码泄露会同时影响资料和模拟系统，因此单一Session、异常IP提示、管理员暂停及客户水印继续作为共享抑止控制。
+
+实现后验证结果见`20260816_shared_password_direct_activation_implementation_test_review.md`。本地自动测试、PostgreSQL联动及登录验证已通过；正式TLS、正式Secret、正式客户UAT与生产Go／No-Go仍未实施。
 
 ## 9. 判定边界
 

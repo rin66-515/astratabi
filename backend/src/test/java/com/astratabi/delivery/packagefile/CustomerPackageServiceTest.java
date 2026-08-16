@@ -30,6 +30,7 @@ import java.util.zip.ZipOutputStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,9 +68,9 @@ class CustomerPackageServiceTest {
         when(packageRepository.findByDeliveryIdForUpdate(delivery.id())).thenReturn(Optional.of(state));
         when(packageRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(releaseService.masterArchivePath(release)).thenReturn(master);
-        when(provisioningService.provision(delivery)).thenReturn(
+        when(provisioningService.provision(delivery, "Document-Pass1!")).thenReturn(
                 new AsrayProvisioningService.ProvisioningResult(
-                        "ext-customer", "https://asray.test/activate?token=secret", "PENDING_ACTIVATION"));
+                        "ext-customer", "ACTIVE"));
 
         CustomerPackageService service = new CustomerPackageService(
                 tokenRepository, packageRepository, releaseService,
@@ -81,6 +82,7 @@ class CustomerPackageServiceTest {
         assertThat(response.state()).isEqualTo("READY");
         assertThat(response.encryptedWorkbookCount()).isEqualTo(1);
         assertThat(response.asrayUserId()).isEqualTo("ext-customer");
+        assertThat(response.asrayAccountStatus()).isEqualTo("ACTIVE");
         Path delivered = root.resolve(state.deliveredStorageKey().replace('/', java.io.File.separatorChar));
         assertThat(delivered).exists();
         try (ZipFile zip = new ZipFile(delivered.toFile(), StandardCharsets.UTF_8)) {
@@ -100,6 +102,7 @@ class CustomerPackageServiceTest {
                         .isEqualTo(delivery.watermarkText());
             }
         }
+        verify(provisioningService).provision(eq(delivery), eq("Document-Pass1!"));
         verify(auditService).record(any(), any(), any(), any(), any(), any(), any());
     }
 

@@ -5,6 +5,7 @@ import com.astratabi.delivery.config.PortalProperties;
 import com.astratabi.delivery.packagefile.PackageReleaseService;
 import com.astratabi.delivery.packagefile.PortalDeliveryPackageRepository;
 import com.astratabi.delivery.packagefile.PortalPackageRelease;
+import com.astratabi.delivery.provisioning.PortalAsrayProvisioningRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +48,7 @@ class DeliveryServiceAutoCustomerCodeTest {
                 properties,
                 packageReleaseService,
                 deliveryPackageRepository,
+                mock(PortalAsrayProvisioningRepository.class),
                 new DeliveryTokenCipher(properties));
 
         release = PortalPackageRelease.create(

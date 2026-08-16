@@ -32,8 +32,8 @@ class AsrayProvisioningServiceTest {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] response = """
                     {"eventId":"11111111-2222-3333-4444-555555555555",
-                     "userId":"asr-7K3M9Q2D","status":"PENDING_ACTIVATION",
-                     "activationUrl":"https://asray.example/activate?token=test",
+                     "userId":"asr-7K3M9Q2D","status":"ACTIVE",
+                     "activationUrl":null,
                      "entitlements":["SIM_CORE_WORKFLOW","SIM_TEST_EVIDENCE"]}
                     """.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -50,7 +50,7 @@ class AsrayProvisioningServiceTest {
 
             PortalProperties properties = properties(server.getAddress().getPort());
             AsrayProvisioningService service = new AsrayProvisioningService(
-                    properties, repository, new ActivationUrlCipher(properties), new ObjectMapper());
+                    properties, repository, new ObjectMapper());
 
             PortalCustomer customer = PortalCustomer.create("CUST-E2E", "契約テスト");
             PortalPackageRelease release = PortalPackageRelease.create(
@@ -60,12 +60,15 @@ class AsrayProvisioningServiceTest {
             PortalDelivery delivery = PortalDelivery.create(
                     "DL-E2E-001", customer, release, Instant.parse("2027-08-08T00:00:00Z"), 3);
 
-            AsrayProvisioningService.ProvisioningResult result = service.provision(delivery);
+            AsrayProvisioningService.ProvisioningResult result = service.provision(
+                    delivery, "Document-Pass1!");
 
             assertThat(result.userId()).isEqualTo("asr-7K3M9Q2D");
+            assertThat(result.status()).isEqualTo("ACTIVE");
             assertThat(requestBody.get())
                     .contains("\"productIds\":[\"DEMO_TEST\"]")
                     .contains("\"entitlements\":[\"SIM_CORE_WORKFLOW\",\"SIM_TEST_EVIDENCE\"]")
+                    .contains("\"initialPassword\":\"Document-Pass1!\"")
                     .doesNotContain("ASRAY_SIMULATION_ACCESS");
         } finally {
             server.stop(0);

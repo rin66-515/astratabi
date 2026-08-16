@@ -32,6 +32,8 @@ public class PortalAsrayProvisioning {
     String asrayUserId;
     @Column(name = "activation_url_ciphertext")
     String activationUrlCiphertext;
+    @Column(name = "account_status", length = 30)
+    String accountStatus;
     @Column(name = "attempt_count", nullable = false)
     int attemptCount;
     @Column(name = "last_error_code", length = 80)
@@ -64,10 +66,11 @@ public class PortalAsrayProvisioning {
         updatedAt = now;
     }
 
-    public void completed(String userId, String ciphertext, Instant now) {
-        status = ProvisioningStatus.COMPLETED;
+    public void completed(String userId, String ciphertext, String accountStatus, Instant now) {
+        this.status = ProvisioningStatus.COMPLETED;
         asrayUserId = userId;
         activationUrlCiphertext = ciphertext;
+        this.accountStatus = accountStatus;
         completedAt = now;
         updatedAt = now;
     }
@@ -88,4 +91,5 @@ public class PortalAsrayProvisioning {
     public ProvisioningStatus status() { return status; }
     public String asrayUserId() { return asrayUserId; }
     public String activationUrlCiphertext() { return activationUrlCiphertext; }
+    public String accountStatus() { return accountStatus; }
 }

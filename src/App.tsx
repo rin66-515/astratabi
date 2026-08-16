@@ -405,10 +405,10 @@ function Delivery({ initialToken }: { initialToken?: string }) {
     }
   }
 
-  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>专属取件处</h2><p>持有店小二发出的专属链接，即可在这里确认交付内容。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">取件凭证</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="输入专属链接中的凭证" /><button className="button outline" type="submit">确认交付内容</button></div><small>通过专属链接进入时，会自动显示对应的交付信息。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">{slowLoading ? '酒快温好了。' : '掌柜正在温酒……'}</p>}{loadFailed && <p className="delivery-state error" role="alert">风太大，灯晃了一下。稍后再试。</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">没有找到这份交付。请确认店小二发给你的专属链接是否完整。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>专属交付信息</span><span>{lookup.status === 'active' ? '可以取件' : lookup.status === 'password-required' ? '密码待设置' : '有效期已结束'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">交付对象：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>交付管理编号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有效期</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>剩余下载次数</dt><dd>{lookup.delivery.remainingDownloads} 次</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.status === 'password-required' && initialToken && <DocumentPasswordSetup token={initialToken} onReady={async () => setLookup(await getDeliveryByToken(initialToken))} />}{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>下载 ZIP</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
+  return <section className="section delivery-section"><div className="section-heading"><p className="eyebrow">Client delivery</p><h2>专属取件处</h2><p>持有店小二发出的专属链接，即可在这里确认交付内容。</p></div><div className="delivery-gate"><form onSubmit={submitToken}><label htmlFor="delivery-token">取件凭证</label><div><input id="delivery-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="输入专属链接中的凭证" /><button className="button outline" type="submit">确认交付内容</button></div><small>通过专属链接进入时，会自动显示对应的交付信息。</small></form></div>{loading && <p className="delivery-state" aria-live="polite">{slowLoading ? '酒快温好了。' : '掌柜正在温酒……'}</p>}{loadFailed && <p className="delivery-state error" role="alert">风太大，灯晃了一下。稍后再试。</p>}{lookup?.status === 'not-found' && <p className="delivery-state error" role="alert">没有找到这份交付。请确认店小二发给你的专属链接是否完整。</p>}{lookup && lookup.status !== 'not-found' && <article className="delivery-preview" aria-live="polite"><div className="preview-title"><span>专属交付信息</span><span>{lookup.status === 'active' ? '可以取件' : lookup.status === 'password-required' ? '密码待设置' : '有效期已结束'}</span></div><h3>{lookup.delivery.projectName}</h3><p className="watermark-note">交付对象：{lookup.delivery.recipientLabel} ／ {lookup.delivery.message}</p><dl><div><dt>交付管理编号</dt><dd>{lookup.delivery.deliveryNumber}</dd></div><div><dt>有效期</dt><dd>{lookup.delivery.expiresAt}</dd></div><div><dt>剩余下载次数</dt><dd>{lookup.delivery.remainingDownloads} 次</dd></div></dl><p className="file-list"><span>▣ {lookup.delivery.packageName}</span></p>{lookup.delivery.asrayUserId && <div className="download-notice"><p>ASRAY 模拟系统账号：<strong>{lookup.delivery.asrayUserId}</strong></p><p>账号状态：{lookup.delivery.asrayAccountStatus === 'ACTIVE' ? '已开通' : '密码待设置'}</p></div>}{lookup.status === 'password-required' && initialToken && <DocumentPasswordSetup token={initialToken} onReady={async () => setLookup(await getDeliveryByToken(initialToken))} />}{lookup.status === 'active' && lookup.delivery.asrayAccountStatus === 'PENDING_ACTIVATION' && initialToken && <DocumentPasswordSetup token={initialToken} accountOnly onReady={async () => setLookup(await getDeliveryByToken(initialToken))} />}{lookup.status === 'active' && <button className="button primary" onClick={startDownload}>下载 ZIP</button>}{downloadNotice && <p className="download-notice" role="status">{downloadNotice}</p>}</article>}</section>
 }
 
-function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () => Promise<void> }) {
+function DocumentPasswordSetup({ token, onReady, accountOnly = false }: { token: string; onReady: () => Promise<void>; accountOnly?: boolean }) {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -446,8 +446,8 @@ function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () 
   }
 
   return <form className="delivery-password-form" onSubmit={submit}>
-    <h4>客户资料密码设置</h4>
-    <p>该密码仅用于本次生成，不会保存。请自行安全保管。</p>
+    <h4>{accountOnly ? 'ASRAY账号密码补录' : '资料与ASRAY共用密码设置'}</h4>
+    <p>{accountOnly ? '既有资料已经生成。请重新输入预定的共用密码，完成模拟系统账号开通。' : '该密码同时用于打开Excel和登录ASRAY模拟系统，系统不会保存密码原文。请自行安全保管。'}</p>
     <label htmlFor="document-password">资料密码</label>
     <div className="password-input-row">
       <input id="document-password" name="documentPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} minLength={12} maxLength={64} value={password} onChange={(event) => setPassword(event.target.value)} onPaste={(event) => reportPaste(event, '资料密码')} aria-describedby="document-password-rules password-paste-status" aria-invalid={password.length > 0 && (!lengthValid || !visibleAsciiValid || !letterValid || !digitValid)} required />
@@ -467,9 +467,9 @@ function DocumentPasswordSetup({ token, onReady }: { token: string; onReady: () 
       <li className={digitValid ? 'is-valid' : 'is-pending'}>至少1个数字</li>
       <li className={confirmationMatches ? 'is-valid' : confirmation.length > 0 ? 'is-invalid' : 'is-pending'}>两次输入一致</li>
     </ul>
-    <button className="button primary" disabled={!canSubmit} type="submit">{submitting ? '正在生成专属资料…' : '设置密码并生成资料'}</button>
+    <button className="button primary" disabled={!canSubmit} type="submit">{submitting ? '正在处理…' : accountOnly ? '使用该密码开通ASRAY账号' : '设置共用密码并生成资料'}</button>
     {notice && <p className="download-notice" role="alert">{notice}</p>}
-    {result && <div className="download-notice"><p>专属资料已生成。请先保存以下 ASRAY 开通信息。</p>{result.asrayActivationUrl && <p>ASRAY 专属账号：{result.asrayUserId}　<a href={result.asrayActivationUrl}>设置登录密码</a></p>}<button className="button outline" type="button" onClick={() => void onReady()}>已保存，继续下载</button></div>}
+    {result && <div className="download-notice"><p>{accountOnly ? 'ASRAY账号已开通。' : '专属资料已生成，ASRAY账号已同步开通。'}</p>{result.asrayUserId && <p>ASRAY 专属账号：<strong>{result.asrayUserId}</strong></p>}<button className="button outline" type="button" onClick={() => void onReady()}>已保存，继续下载</button></div>}
   </form>
 }
 

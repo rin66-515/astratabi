@@ -8,6 +8,8 @@ import com.astratabi.delivery.packagefile.PackageReleaseService;
 import com.astratabi.delivery.packagefile.PortalPackageRelease;
 import com.astratabi.delivery.packagefile.PortalDeliveryPackage;
 import com.astratabi.delivery.packagefile.PortalDeliveryPackageRepository;
+import com.astratabi.delivery.provisioning.PortalAsrayProvisioning;
+import com.astratabi.delivery.provisioning.PortalAsrayProvisioningRepository;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import java.nio.file.Files;
@@ -47,6 +49,7 @@ public class DeliveryService {
     private final PortalProperties properties;
     private final PackageReleaseService packageReleaseService;
     private final PortalDeliveryPackageRepository deliveryPackageRepository;
+    private final PortalAsrayProvisioningRepository asrayProvisioningRepository;
     private final DeliveryTokenCipher deliveryTokenCipher;
 
     public DeliveryService(PortalCustomerRepository customerRepository, PortalDeliveryRepository deliveryRepository,
@@ -54,6 +57,7 @@ public class DeliveryService {
                            PortalDownloadEventRepository eventRepository, AuditService auditService, PortalProperties properties,
                            PackageReleaseService packageReleaseService,
                            PortalDeliveryPackageRepository deliveryPackageRepository,
+                           PortalAsrayProvisioningRepository asrayProvisioningRepository,
                            DeliveryTokenCipher deliveryTokenCipher) {
         this.customerRepository = customerRepository;
         this.deliveryRepository = deliveryRepository;
@@ -64,6 +68,7 @@ public class DeliveryService {
         this.properties = properties;
         this.packageReleaseService = packageReleaseService;
         this.deliveryPackageRepository = deliveryPackageRepository;
+        this.asrayProvisioningRepository = asrayProvisioningRepository;
         this.deliveryTokenCipher = deliveryTokenCipher;
     }
 
@@ -203,7 +208,8 @@ public class DeliveryService {
         if (delivery.status() != DeliveryStatus.ISSUED) {
             throw notFound();
         }
-        return PublicDeliveryResponse.active(delivery);
+        return PublicDeliveryResponse.active(delivery,
+                asrayProvisioningRepository.findByDelivery_Id(delivery.id()).orElse(null));
     }
 
     @Transactional
@@ -351,20 +357,28 @@ public class DeliveryService {
 
     public record PublicDeliveryResponse(String state, String projectName, String recipientLabel, String deliveryNumber,
                                          Instant expiresAt, int remainingDownloads, String packageName, String message,
-                                         String generationState) {
-        static PublicDeliveryResponse active(PortalDelivery delivery) {
-            return response("ACTIVE", delivery, "交付資料を受け取れます。", "READY");
+                                         String generationState, String asrayUserId, String asrayAccountStatus) {
+        static PublicDeliveryResponse active(
+                PortalDelivery delivery, PortalAsrayProvisioning provisioning) {
+            return response("ACTIVE", delivery, "交付資料を受け取れます。", "READY",
+                    provisioning == null ? null : provisioning.asrayUserId(),
+                    provisioning == null ? null : provisioning.accountStatus());
         }
         static PublicDeliveryResponse preparing(PortalDelivery delivery, String generationState) {
             return response("PASSWORD_REQUIRED", delivery,
-                    "资料密码设置完成后，系统会生成客户专属加密资料包。", generationState);
+                    "资料密码设置完成后，系统会生成客户专属加密资料包。", generationState,
+                    null, null);
         }
         static PublicDeliveryResponse expired(PortalDelivery delivery) {
-            return response("EXPIRED", delivery, "この交付リンクの有効期限は終了しました。", null);
+            return response("EXPIRED", delivery, "この交付リンクの有効期限は終了しました。", null,
+                    null, null);
         }
-        private static PublicDeliveryResponse response(String state, PortalDelivery delivery, String message, String generationState) {
+        private static PublicDeliveryResponse response(
+                String state, PortalDelivery delivery, String message, String generationState,
+                String asrayUserId, String asrayAccountStatus) {
             return new PublicDeliveryResponse(state, PROJECT_NAME, delivery.customer().customerCode() + " / " + delivery.customer().displayName(),
-                    delivery.deliveryNo(), delivery.expiresAt(), delivery.remainingDownloads(), delivery.packageName(), message, generationState);
+                    delivery.deliveryNo(), delivery.expiresAt(), delivery.remainingDownloads(), delivery.packageName(), message,
+                    generationState, asrayUserId, asrayAccountStatus);
         }
     }
 

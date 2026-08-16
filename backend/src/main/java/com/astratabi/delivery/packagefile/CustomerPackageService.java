@@ -91,7 +91,8 @@ public class CustomerPackageService {
             generate(customerPackage, request.password().toCharArray());
         }
 
-        AsrayProvisioningService.ProvisioningResult provisioning = provisioningService.provision(delivery);
+        AsrayProvisioningService.ProvisioningResult provisioning = provisioningService.provision(
+                delivery, request.password());
         delivery.markIssued(Instant.now());
         token.markUsed(Instant.now());
         auditService.record("CUSTOMER", delivery.customer().customerCode(),
@@ -106,7 +107,7 @@ public class CustomerPackageService {
                 customerPackage.deliveredSha256(),
                 customerPackage.encryptedWorkbookCount(),
                 provisioning.userId(),
-                provisioning.activationUrl());
+                provisioning.status());
     }
 
     private void generate(PortalDeliveryPackage state, char[] password) {
@@ -328,6 +329,6 @@ public class CustomerPackageService {
             String sha256,
             int encryptedWorkbookCount,
             String asrayUserId,
-            String asrayActivationUrl) {
+            String asrayAccountStatus) {
     }
 }
