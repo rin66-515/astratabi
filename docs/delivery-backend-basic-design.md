@@ -1,6 +1,6 @@
 # AstraTabi Portal：交付后台基本设计书
 
-- 版本：0.6
+- 版本：0.7
 - 日期：2026-08-16
 - 状态：客户密码、加密资料包、真实下载与ASRAY账号联动已完成本地验证；生产发布未判定
 - 适用范围：AstraTabi 的资料包人工确认收款、客户专属链接交付与单管理员运营
@@ -117,8 +117,8 @@
 | `POST` | `/api/v1/admin/auth/login` | 管理员登录并建立会话 |
 | `POST` | `/api/v1/admin/auth/logout` | 注销会话 |
 | `GET` | `/api/v1/admin/session` | 取得当前管理员信息 |
-| `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录；默认按`created_at DESC, delivery_id DESC`稳定倒序 |
-| `GET` | `/api/v1/admin/deliveries/{id}` | 取得交付详情及当前有效链接；响应禁止缓存，旧摘要记录不返回链接 |
+| `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录；默认按`created_at DESC, delivery_id DESC`稳定倒序；返回已发行ASRAY User ID和账号状态 |
+| `GET` | `/api/v1/admin/deliveries/{id}` | 取得交付详情、ASRAY User ID及当前有效链接；响应禁止缓存，旧摘要记录不返回链接 |
 | `GET` | `/api/v1/admin/package-releases` | 查询有效/归档母版版本 |
 | `POST` | `/api/v1/admin/package-releases` | 同时上传 ZIP 与 `.sha256`，校验后登记不可变版本 |
 | `POST` | `/api/v1/admin/package-releases/{id}/archive` | 逻辑归档母版；不删除文件 |
@@ -140,7 +140,7 @@
 
 前端请求下载时只传递 `rawToken`，不得传递、信任或修改 `download_count`、`download_limit`、交付状态或文件对象键。后端以数据库中当前记录为唯一权威数据源。签票只建立短时凭证；首次取得真实文件流时，后端在事务内完成票据认领、次数扣减与开始事件写入。
 
-API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常信息。管理员写操作使用 CSRF 防护并要求有效会话。
+管理员交付响应只允许返回ASRAY User ID和账号状态，不得返回资料密码、登录密码、Activation URL密文、内部签名信息或Provisioning错误详情。API失败不得暴露客户名称、存储路径、令牌哈希或内部异常信息。管理员写操作使用 CSRF 防护并要求有效会话。
 
 ## 6. 水印与文件交付
 
@@ -177,12 +177,12 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 | 页面能力 | 依赖 API | 后端结果 |
 |---|---|---|
 | 交付总数、发放中、即将到期、已停用 | `GET /admin/deliveries?summary=true` | 统计值 |
-| 搜索、状态筛选、分页 | `GET /admin/deliveries` | 服务器分页列表；最新生成记录优先，相同生成时刻按交付ID倒序 |
+| 搜索、状态筛选、分页 | `GET /admin/deliveries` | 服务器分页列表；最新生成记录优先，相同生成时刻按交付ID倒序；显示ASRAY账号或“未发行” |
 | 新建交付 | `POST /admin/deliveries` | `DRAFT` 记录 |
 | 上传母版 | `POST /admin/package-releases` | 私有不可变 ZIP、SHA-256 与版本记录 |
 | 归档母版 | `POST /admin/package-releases/{id}/archive` | 保留文件并禁止新交付选择 |
 | 生成专属链接 | `POST /admin/deliveries/{id}/issue` | 水印 ZIP、令牌、链接 |
-| 详情抽屉 | `GET /admin/deliveries/{id}` | 交付、资料、当前有效链接或旧数据不可恢复状态 |
+| 详情抽屉 | `GET /admin/deliveries/{id}` | 交付、资料、ASRAY账号与复制操作、当前有效链接或旧数据不可恢复状态 |
 | 延期、重发、停用 | 各状态变更 API | 新状态与审计日志 |
 
 ## 8. 实现顺序
@@ -233,6 +233,14 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 - 第一排序键为交付生成时刻`created_at DESC`，保证客服优先看到最新生成的交付。
 - 第二排序键为`delivery_id DESC`，用于生成时刻相同时稳定分页边界，避免同一记录在翻页时重复或遗漏。
 - 有效期、发放状态和交付编号中的日期均不得代替生成时刻作为排序依据。
+
+### 10.5 客服ASRAY账号照合（更新：2026-08-16）
+
+- 管理员交付一览及详情直接显示`portal_asray_provisioning.asray_user_id`；未生成时显示“未发行”。
+- 一览按当前页交付ID集合一次性取得Provisioning，禁止按行查询。
+- 详情提供只读账号与复制按钮，复制失败时选中账号并提示手工复制。
+- API只返回User ID和账号状态，不返回资料密码、登录密码、Activation URL密文、Provisioning错误详情或内部Secret。
+- 本功能只改善客服照合，不改变账号开通、商品权限、密码或下载流程。
 
 ## 9. 待决事项
 

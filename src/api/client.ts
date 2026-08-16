@@ -59,6 +59,8 @@ export type AdminDelivery = {
   remainingDownloads: number
   watermarkText: string
   packageReady: boolean
+  asrayUserId: string | null
+  asrayAccountStatus: string | null
 }
 
 export type AdminDeliveryDetail = {

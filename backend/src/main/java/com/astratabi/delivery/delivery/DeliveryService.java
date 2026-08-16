@@ -28,7 +28,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class DeliveryService {
@@ -130,7 +133,16 @@ public class DeliveryService {
         } else {
             result = deliveryRepository.searchByStatusAndKeyword(status, normalizedKeyword, pageable);
         }
-        return result.map(AdminDeliveryResponse::from);
+        Map<UUID, PortalAsrayProvisioning> provisioningByDeliveryId = result.isEmpty()
+                ? Map.of()
+                : asrayProvisioningRepository.findByDelivery_IdIn(
+                                result.getContent().stream().map(PortalDelivery::id).toList())
+                        .stream()
+                        .collect(Collectors.toMap(
+                                value -> value.delivery().id(),
+                                Function.identity()));
+        return result.map(delivery -> AdminDeliveryResponse.from(
+                delivery, provisioningByDeliveryId.get(delivery.id())));
     }
 
     @Transactional(readOnly = true)
@@ -145,9 +157,12 @@ public class DeliveryService {
     @Transactional(readOnly = true)
     public AdminDeliveryDetailResponse detail(UUID id) {
         PortalDelivery delivery = requireDetail(id);
+        PortalAsrayProvisioning provisioning = asrayProvisioningRepository
+                .findByDelivery_Id(id)
+                .orElse(null);
         return tokenRepository.findFirstByDelivery_IdAndRevokedAtIsNullOrderByIssuedAtDesc(id)
-                .map(token -> detailWithActiveToken(delivery, token))
-                .orElseGet(() -> AdminDeliveryDetailResponse.withoutLink(delivery));
+                .map(token -> detailWithActiveToken(delivery, token, provisioning))
+                .orElseGet(() -> AdminDeliveryDetailResponse.withoutLink(delivery, provisioning));
     }
 
     @Transactional(readOnly = true)
@@ -303,12 +318,14 @@ public class DeliveryService {
     }
 
     private AdminDeliveryDetailResponse detailWithActiveToken(
-            PortalDelivery delivery, PortalDeliveryToken token) {
+            PortalDelivery delivery, PortalDeliveryToken token,
+            PortalAsrayProvisioning provisioning) {
         if (token.tokenCiphertext() == null || token.tokenCiphertext().isBlank()) {
-            return AdminDeliveryDetailResponse.legacyUnrecoverable(delivery);
+            return AdminDeliveryDetailResponse.legacyUnrecoverable(delivery, provisioning);
         }
         String rawToken = deliveryTokenCipher.decrypt(token.tokenCiphertext());
-        return AdminDeliveryDetailResponse.available(delivery, buildPublicLink(rawToken));
+        return AdminDeliveryDetailResponse.available(
+                delivery, provisioning, buildPublicLink(rawToken));
     }
 
     private String clientIp(HttpServletRequest request) {
@@ -328,14 +345,22 @@ public class DeliveryService {
     public record AdminDeliveryResponse(UUID id, String deliveryNo, String customerCode, String customerName, String projectName,
                                         String packageName, UUID packageReleaseId, String packageVersion,
                                         DeliveryStatus status, Instant expiresAt, int downloadLimit,
-                                        int downloadCount, int remainingDownloads, String watermarkText, boolean packageReady) {
+                                        int downloadCount, int remainingDownloads, String watermarkText, boolean packageReady,
+                                        String asrayUserId, String asrayAccountStatus) {
         static AdminDeliveryResponse from(PortalDelivery delivery) {
+            return from(delivery, null);
+        }
+
+        static AdminDeliveryResponse from(
+                PortalDelivery delivery, PortalAsrayProvisioning provisioning) {
             return new AdminDeliveryResponse(delivery.id(), delivery.deliveryNo(), delivery.customer().customerCode(), delivery.customer().displayName(),
                     delivery.projectName(), delivery.packageName(),
                     delivery.packageRelease() == null ? null : delivery.packageRelease().id(),
                     delivery.packageRelease() == null ? null : delivery.packageRelease().version(),
                     delivery.status(), delivery.expiresAt(), delivery.downloadLimit(),
-                    delivery.downloadCount(), delivery.remainingDownloads(), delivery.watermarkText(), delivery.packageReady());
+                    delivery.downloadCount(), delivery.remainingDownloads(), delivery.watermarkText(), delivery.packageReady(),
+                    provisioning == null ? null : provisioning.asrayUserId(),
+                    provisioning == null ? null : provisioning.accountStatus());
         }
     }
 
@@ -343,16 +368,26 @@ public class DeliveryService {
     }
 
     public record AdminDeliveryDetailResponse(AdminDeliveryResponse delivery, String deliveryLink, String linkState) {
-        static AdminDeliveryDetailResponse available(PortalDelivery delivery, String deliveryLink) {
-            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), deliveryLink, "AVAILABLE");
+        static AdminDeliveryDetailResponse available(
+                PortalDelivery delivery, PortalAsrayProvisioning provisioning,
+                String deliveryLink) {
+            return new AdminDeliveryDetailResponse(
+                    AdminDeliveryResponse.from(delivery, provisioning),
+                    deliveryLink, "AVAILABLE");
         }
 
-        static AdminDeliveryDetailResponse legacyUnrecoverable(PortalDelivery delivery) {
-            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), null, "LEGACY_UNRECOVERABLE");
+        static AdminDeliveryDetailResponse legacyUnrecoverable(
+                PortalDelivery delivery, PortalAsrayProvisioning provisioning) {
+            return new AdminDeliveryDetailResponse(
+                    AdminDeliveryResponse.from(delivery, provisioning),
+                    null, "LEGACY_UNRECOVERABLE");
         }
 
-        static AdminDeliveryDetailResponse withoutLink(PortalDelivery delivery) {
-            return new AdminDeliveryDetailResponse(AdminDeliveryResponse.from(delivery), null, "NONE");
+        static AdminDeliveryDetailResponse withoutLink(
+                PortalDelivery delivery, PortalAsrayProvisioning provisioning) {
+            return new AdminDeliveryDetailResponse(
+                    AdminDeliveryResponse.from(delivery, provisioning),
+                    null, "NONE");
         }
     }
 

@@ -5,6 +5,7 @@ import com.astratabi.delivery.config.PortalProperties;
 import com.astratabi.delivery.packagefile.PackageReleaseService;
 import com.astratabi.delivery.packagefile.PortalDeliveryPackageRepository;
 import com.astratabi.delivery.packagefile.PortalPackageRelease;
+import com.astratabi.delivery.provisioning.PortalAsrayProvisioning;
 import com.astratabi.delivery.provisioning.PortalAsrayProvisioningRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +28,7 @@ class DeliveryServiceLinkDetailTest {
     private PortalDeliveryRepository deliveryRepository;
     private PortalDeliveryTokenRepository tokenRepository;
     private DeliveryTokenCipher cipher;
+    private PortalAsrayProvisioningRepository provisioningRepository;
     private DeliveryService service;
     private PortalDelivery delivery;
 
@@ -34,6 +37,7 @@ class DeliveryServiceLinkDetailTest {
         PortalProperties properties = properties();
         deliveryRepository = mock(PortalDeliveryRepository.class);
         tokenRepository = mock(PortalDeliveryTokenRepository.class);
+        provisioningRepository = mock(PortalAsrayProvisioningRepository.class);
         cipher = new DeliveryTokenCipher(properties);
         service = new DeliveryService(
                 mock(PortalCustomerRepository.class),
@@ -45,7 +49,7 @@ class DeliveryServiceLinkDetailTest {
                 properties,
                 mock(PackageReleaseService.class),
                 mock(PortalDeliveryPackageRepository.class),
-                mock(PortalAsrayProvisioningRepository.class),
+                provisioningRepository,
                 cipher);
 
         PortalPackageRelease release = PortalPackageRelease.create(
@@ -112,6 +116,27 @@ class DeliveryServiceLinkDetailTest {
 
         assertThat(detail.linkState()).isEqualTo("NONE");
         assertThat(detail.deliveryLink()).isNull();
+    }
+
+    @Test
+    void returnsAsrayAccountInAdministratorDetailWithoutSensitiveProvisioningData() {
+        PortalAsrayProvisioning provisioning = PortalAsrayProvisioning.create(
+                delivery, UUID.randomUUID(), Instant.parse("2026-08-16T00:00:00Z"));
+        provisioning.completed(
+                "asr-WXYZ6789", "secret-activation-ciphertext", "ACTIVE",
+                Instant.parse("2026-08-16T00:01:00Z"));
+        when(provisioningRepository.findByDelivery_Id(delivery.id()))
+                .thenReturn(Optional.of(provisioning));
+        when(tokenRepository.findFirstByDelivery_IdAndRevokedAtIsNullOrderByIssuedAtDesc(delivery.id()))
+                .thenReturn(Optional.empty());
+
+        DeliveryService.AdminDeliveryDetailResponse detail = service.detail(delivery.id());
+
+        assertThat(detail.delivery().asrayUserId()).isEqualTo("asr-WXYZ6789");
+        assertThat(detail.delivery().asrayAccountStatus()).isEqualTo("ACTIVE");
+        assertThat(DeliveryService.AdminDeliveryResponse.class.getRecordComponents())
+                .extracting(component -> component.getName())
+                .doesNotContain("password", "activationUrlCiphertext", "lastErrorCode");
     }
 
     private static PortalProperties properties() {

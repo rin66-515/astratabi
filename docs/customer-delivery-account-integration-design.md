@@ -111,6 +111,17 @@ Java String无法主动擦除，因此禁止将Request、DTO或异常对象整�
 
 实现后验证结果见`20260816_shared_password_direct_activation_implementation_test_review.md`。本地自动测试、PostgreSQL联动及登录验证已通过；正式TLS、正式Secret、正式客户UAT与生产Go／No-Go仍未实施。
 
+## 16. 管理员交付记录的ASRAY账号表示
+
+- 客服交付一览与详情从`portal_asray_provisioning`读取已发行User ID和账号状态。
+- 一览使用当前页交付ID集合的批量查询，避免交付件数增加时产生N+1查询。
+- 已发行账号显示为不透明字符串；`asr-`和既有`ext-`形式均原样显示，不按Prefix判断权限或状态。
+- 无Provisioning或尚未取得User ID时显示“未发行”，不以空字符串伪装已开通。
+- 详情提供复制User ID操作，但不提供密码查看、密码复制、Activation URL密文或错误详情。
+- 管理员页面仅用于交付照合；暂停、解封、登录履历及异常IP判断仍由ASRAY管理员功能负责。
+
+对应制造前Review见`20260816_admin_delivery_asray_account_preimplementation_review.md`。正式客服UAT与生产Go／No-Go保持未实施、未判定。
+
 ## 9. 判定边界
 
 本设计先在本地Docker和自动化测试中验证。真实域名、TLS、对象存储、正式客户、正式验收和生产Go/No-Go仍为`未实施/未判定`。
