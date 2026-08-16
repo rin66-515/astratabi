@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,7 +116,10 @@ public class DeliveryService {
     @Transactional(readOnly = true)
     public Page<AdminDeliveryResponse> list(String keyword, DeliveryStatus status, int page, int size) {
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100));
+        Pageable pageable = PageRequest.of(
+                Math.max(0, page),
+                Math.min(Math.max(1, size), 100),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Page<PortalDelivery> result;
         if (normalizedKeyword == null && status == null) {
             result = deliveryRepository.findAll(pageable);

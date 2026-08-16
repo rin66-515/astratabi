@@ -1,6 +1,6 @@
 # AstraTabi Portal：交付后台基本设计书
 
-- 版本：0.5
+- 版本：0.6
 - 日期：2026-08-16
 - 状态：客户密码、加密资料包、真实下载与ASRAY账号联动已完成本地验证；生产发布未判定
 - 适用范围：AstraTabi 的资料包人工确认收款、客户专属链接交付与单管理员运营
@@ -117,7 +117,7 @@
 | `POST` | `/api/v1/admin/auth/login` | 管理员登录并建立会话 |
 | `POST` | `/api/v1/admin/auth/logout` | 注销会话 |
 | `GET` | `/api/v1/admin/session` | 取得当前管理员信息 |
-| `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录 |
+| `GET` | `/api/v1/admin/deliveries` | 分页、搜索、状态筛选交付记录；默认按`created_at DESC, delivery_id DESC`稳定倒序 |
 | `GET` | `/api/v1/admin/deliveries/{id}` | 取得交付详情及当前有效链接；响应禁止缓存，旧摘要记录不返回链接 |
 | `GET` | `/api/v1/admin/package-releases` | 查询有效/归档母版版本 |
 | `POST` | `/api/v1/admin/package-releases` | 同时上传 ZIP 与 `.sha256`，校验后登记不可变版本 |
@@ -177,7 +177,7 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 | 页面能力 | 依赖 API | 后端结果 |
 |---|---|---|
 | 交付总数、发放中、即将到期、已停用 | `GET /admin/deliveries?summary=true` | 统计值 |
-| 搜索、状态筛选、分页 | `GET /admin/deliveries` | 服务器分页列表 |
+| 搜索、状态筛选、分页 | `GET /admin/deliveries` | 服务器分页列表；最新生成记录优先，相同生成时刻按交付ID倒序 |
 | 新建交付 | `POST /admin/deliveries` | `DRAFT` 记录 |
 | 上传母版 | `POST /admin/package-releases` | 私有不可变 ZIP、SHA-256 与版本记录 |
 | 归档母版 | `POST /admin/package-releases/{id}/archive` | 保留文件并禁止新交付选择 |
@@ -226,6 +226,13 @@ API 失败不得暴露客户名称、存储路径、令牌哈希或内部异常�
 - 同一客户显示名连续购买时，每次建立独立客户记录、交付记录、客户专属包和ASRAY账号；不进行跨订单账号复用。
 - 本地真实API以同一显示名连续建立两笔交付，两个客户编号、交付编号和ASRAY账号均不重复；两份专属包达到`READY`，ASRAY侧`DEMO_FULL`三项权益与共用训练案件成员资格均已确认。
 - 生产环境支付订单号、退款对账和客户主档合并仍未实施；当前订单量直接以交付表统计。
+
+### 10.4 客服交付一览默认排序（更新：2026-08-16）
+
+- 无筛选、仅状态、仅关键字、状态与关键字组合四种查询均使用同一分页排序规则。
+- 第一排序键为交付生成时刻`created_at DESC`，保证客服优先看到最新生成的交付。
+- 第二排序键为`delivery_id DESC`，用于生成时刻相同时稳定分页边界，避免同一记录在翻页时重复或遗漏。
+- 有效期、发放状态和交付编号中的日期均不得代替生成时刻作为排序依据。
 
 ## 9. 待决事项
 
