@@ -764,7 +764,7 @@ function AdminWorkspace({ onLoggedOut }: { onLoggedOut: () => void }) {
   function openDeliveryDetails(recordId: string) {
     setSelectedId(recordId)
     setNotice('')
-    if (window.matchMedia('(max-width: 1100px)').matches) setMobileDetailOpen(true)
+    if (window.matchMedia('(max-width: 1280px)').matches) setMobileDetailOpen(true)
   }
 
   const activeReleases = packageReleases.filter((release) => release.status === 'ACTIVE')
