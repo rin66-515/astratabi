@@ -1,10 +1,14 @@
-import type { GameStats } from '../types/game'
+import type { GameSaveState, GameStats, Language, VolumeProgress } from '../types/game'
+
+export const DEFAULT_STAGE_DEADLINE_MONTHS = 18
 
 export const initialGameStats: GameStats = {
   debtRmb: 100_000,
   cashJpy: 260_000,
   salaryJpy: 255_000,
   exchangeRate: 0.048,
+  minimumPaymentRmb: 5_000,
+  debtInterestRate: 0.006,
   actionPoints: 7,
   health: 65,
   mental: 65,
@@ -23,4 +27,38 @@ export const initialGameStats: GameStats = {
   debtStress: 70,
   observerActivity: 20,
   boundary: 10,
+}
+
+export const initialVolumeProgress: VolumeProgress = {
+  phase: 'normal',
+  elapsedMonths: 1,
+  stageDeadlineMonths: DEFAULT_STAGE_DEADLINE_MONTHS,
+  debtClearedMonth: null,
+  completedAnnualReportYears: [],
+  resolvedStageEndingMonths: [],
+  debtFreeMonthStarted: false,
+  debtFreeMonthCompleted: false,
+  stageEnding: null,
+  finalEnding: null,
+}
+
+export function createInitialGameSaveState(language: Language): GameSaveState {
+  return {
+    language,
+    screen: 'event',
+    month: 8,
+    year: 2024,
+    stats: { ...initialGameStats },
+    flags: [],
+    completedEventIds: [],
+    history: [],
+    currentEventId: 'main-00-arrival',
+    resolution: null,
+    startedAt: null,
+    progress: { ...initialVolumeProgress },
+    activeMiniGame: null,
+    monthlyPlan: null,
+    monthlySettlements: [],
+    debtFreeChoiceId: null,
+  }
 }

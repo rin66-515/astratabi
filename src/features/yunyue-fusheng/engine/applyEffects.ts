@@ -19,7 +19,13 @@ export function applyEffects(stats: GameStats, effects: GameEffects = {}): GameS
     let value = stats[key] + delta
 
     if (boundedStats.has(key)) value = clamp(value, 0, 100)
-    if (key === 'debtRmb' || key === 'salaryJpy' || key === 'exchangeRate') value = Math.max(0, value)
+    if (
+      key === 'debtRmb'
+      || key === 'salaryJpy'
+      || key === 'exchangeRate'
+      || key === 'minimumPaymentRmb'
+      || key === 'debtInterestRate'
+    ) value = Math.max(0, value)
     next[key] = value
   }
 
