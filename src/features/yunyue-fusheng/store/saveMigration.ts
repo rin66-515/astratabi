@@ -1,4 +1,10 @@
-import { createInitialGameSaveState, initialGameStats, initialVolumeProgress } from '../data/initialState'
+import {
+  createInitialGameSaveState,
+  createInitialSideHustleState,
+  initialGameStats,
+  initialVolumeProgress,
+} from '../data/initialState'
+import { sideHustleRouteIds } from '../engine/sideHustleResolver'
 import type {
   GameEffects,
   GameSaveState,
@@ -8,6 +14,9 @@ import type {
   MonthSettlement,
   MonthlyActionSelection,
   MonthlyPlan,
+  SideHustleActionOutcome,
+  SideHustleRouteId,
+  SideHustleState,
   StatKey,
   VolumeProgress,
 } from '../types/game'
@@ -81,6 +90,49 @@ function screenOf(value: unknown): GameScreen {
     : 'event'
 }
 
+function sideHustleRouteIdOf(value: unknown): SideHustleRouteId | null {
+  return typeof value === 'string' && sideHustleRouteIds.includes(value as SideHustleRouteId)
+    ? value as SideHustleRouteId
+    : null
+}
+
+function migrateSideHustleOutcome(value: unknown): SideHustleActionOutcome | undefined {
+  if (!isRecord(value)) return undefined
+  const routeId = sideHustleRouteIdOf(value.routeId)
+  if (!routeId) return undefined
+  return {
+    routeId,
+    experience: Math.max(0, finiteNumber(value.experience, 0)),
+    incomeJpy: Math.max(0, finiteNumber(value.incomeJpy, 0)),
+  }
+}
+
+function migrateSideHustles(value: unknown): SideHustleState {
+  const fallback = createInitialSideHustleState()
+  if (!isRecord(value) || !isRecord(value.routes)) return fallback
+  const routes = { ...fallback.routes }
+  for (const routeId of sideHustleRouteIds) {
+    const route = value.routes[routeId]
+    if (!isRecord(route)) continue
+    routes[routeId] = {
+      unlockedAtMonth: route.unlockedAtMonth === null
+        ? null
+        : Math.max(1, finiteNumber(route.unlockedAtMonth, 0)) || null,
+      level: Math.max(0, Math.floor(finiteNumber(route.level, 0))),
+      experience: Math.max(0, finiteNumber(route.experience, 0)),
+      totalIncomeJpy: Math.max(0, finiteNumber(route.totalIncomeJpy, 0)),
+      completedActions: Math.max(0, Math.floor(finiteNumber(route.completedActions, 0))),
+    }
+  }
+  return {
+    routes,
+    totalIncomeJpy: Math.max(
+      0,
+      finiteNumber(value.totalIncomeJpy, Object.values(routes).reduce((sum, route) => sum + route.totalIncomeJpy, 0)),
+    ),
+  }
+}
+
 function migrateActionSelection(value: unknown): MonthlyActionSelection | null {
   if (!isRecord(value) || typeof value.actionId !== 'string') return null
   return {
@@ -93,10 +145,11 @@ function migrateActionSelection(value: unknown): MonthlyActionSelection | null {
       : { zh: value.actionId, ja: value.actionId },
     actionPointCost: Math.max(0, finiteNumber(value.actionPointCost, 0)),
     effects: isRecord(value.effects) ? value.effects as GameEffects : {},
+    sideHustle: migrateSideHustleOutcome(value.sideHustle),
   }
 }
 
-function migrateMonthlyPlan(value: unknown): MonthlyPlan | null {
+function migrateMonthlyPlan(value: unknown, fallbackCashJpy: number): MonthlyPlan | null {
   if (!isRecord(value)) return null
   const selectedActions = Array.isArray(value.selectedActions)
     ? value.selectedActions.map(migrateActionSelection).filter((action): action is MonthlyActionSelection => action !== null)
@@ -106,6 +159,7 @@ function migrateMonthlyPlan(value: unknown): MonthlyPlan | null {
     elapsedMonth: Math.max(1, finiteNumber(value.elapsedMonth, 1)),
     year: finiteNumber(value.year, 2024),
     month: finiteNumber(value.month, 8),
+    openingCashJpy: Math.max(0, finiteNumber(value.openingCashJpy, fallbackCashJpy)),
     actionPointsGranted: granted,
     actionPointsRemaining: Math.min(granted, Math.max(0, finiteNumber(value.actionPointsRemaining, granted))),
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
@@ -130,6 +184,7 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
     actionPointsSpent: Math.max(0, finiteNumber(value.actionPointsSpent, 0)),
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
     salaryJpy: Math.max(0, finiteNumber(value.salaryJpy, 0)),
+    sideHustleIncomeJpy: Math.max(0, finiteNumber(value.sideHustleIncomeJpy, 0)),
     fixedExpenses: Array.isArray(value.fixedExpenses)
       ? value.fixedExpenses as MonthSettlement['fixedExpenses']
       : [],
@@ -151,12 +206,13 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
 
   const language = languageOf(persistedState.language)
   const fallback = createInitialGameSaveState(language)
+  const stats = migrateStats(persistedState.stats)
   return {
     language,
     screen: screenOf(persistedState.screen),
     month: finiteNumber(persistedState.month, fallback.month),
     year: finiteNumber(persistedState.year, fallback.year),
-    stats: migrateStats(persistedState.stats),
+    stats,
     flags: stringArray(persistedState.flags),
     completedEventIds: stringArray(persistedState.completedEventIds),
     history: Array.isArray(persistedState.history) ? persistedState.history as GameSaveState['history'] : [],
@@ -165,7 +221,8 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
     startedAt: typeof persistedState.startedAt === 'string' ? persistedState.startedAt : null,
     progress: migrateProgress(persistedState.progress),
     activeMiniGame: null,
-    monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan),
+    sideHustles: migrateSideHustles(persistedState.sideHustles),
+    monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan, stats.cashJpy),
     monthlySettlements: Array.isArray(persistedState.monthlySettlements)
       ? persistedState.monthlySettlements.map(migrateSettlement).filter((settlement): settlement is MonthSettlement => settlement !== null)
       : [],

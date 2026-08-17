@@ -121,4 +121,25 @@ describe('playable ending flow', () => {
       .toBe((firstPlan?.actionPointsRemaining ?? 0) - 1)
     expect(useGameStore.getState().monthlyPlan?.selectedActions[0]?.actionId).toBe('rest')
   })
+
+  it('runs a side hustle through AP spending, income, progression and month settlement', () => {
+    setMonthlyState({ elapsedMonths: 2 })
+    const cashBefore = useGameStore.getState().stats.cashJpy
+    const stressBefore = useGameStore.getState().stats.stress
+    useGameStore.getState().prepareMonth()
+
+    expect(useGameStore.getState().sideHustles.routes.content_account.unlockedAtMonth).toBe(2)
+    const actionPointsBefore = useGameStore.getState().monthlyPlan?.actionPointsRemaining ?? 0
+    useGameStore.getState().performMonthlyAction('side_hustle_content_account')
+
+    expect(useGameStore.getState().stats.cashJpy).toBe(cashBefore + 2_000)
+    expect(useGameStore.getState().stats.stress).toBe(stressBefore + 3)
+    expect(useGameStore.getState().monthlyPlan?.actionPointsRemaining).toBe(actionPointsBefore - 2)
+    expect(useGameStore.getState().sideHustles.totalIncomeJpy).toBe(2_000)
+    expect(useGameStore.getState().sideHustles.routes.content_account.experience).toBe(3)
+
+    useGameStore.getState().completeMonth()
+    expect(useGameStore.getState().monthlySettlements.at(-1)?.sideHustleIncomeJpy).toBe(2_000)
+    expect(useGameStore.getState().screen).toBe('month-settlement')
+  })
 })

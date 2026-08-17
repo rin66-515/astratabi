@@ -1,4 +1,4 @@
-import type { GameSaveState, GameStats, Language, VolumeProgress } from '../types/game'
+import type { GameSaveState, GameStats, Language, SideHustleState, VolumeProgress } from '../types/game'
 
 export const DEFAULT_STAGE_DEADLINE_MONTHS = 18
 
@@ -42,6 +42,18 @@ export const initialVolumeProgress: VolumeProgress = {
   finalEnding: null,
 }
 
+export function createInitialSideHustleState(): SideHustleState {
+  return {
+    routes: {
+      freelance: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      it_materials: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      content_account: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      own_product: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+    },
+    totalIncomeJpy: 0,
+  }
+}
+
 export function createInitialGameSaveState(language: Language): GameSaveState {
   return {
     language,
@@ -57,6 +69,7 @@ export function createInitialGameSaveState(language: Language): GameSaveState {
     startedAt: null,
     progress: { ...initialVolumeProgress },
     activeMiniGame: null,
+    sideHustles: createInitialSideHustleState(),
     monthlyPlan: null,
     monthlySettlements: [],
     debtFreeChoiceId: null,

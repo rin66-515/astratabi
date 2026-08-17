@@ -14,6 +14,7 @@ function plan(overrides: Partial<MonthlyPlan> = {}): MonthlyPlan {
     elapsedMonth: 2,
     year: 2024,
     month: 9,
+    openingCashJpy: initialGameStats.cashJpy,
     actionPointsGranted: 7,
     actionPointsRemaining: 7,
     exchangeRate: 0.048,

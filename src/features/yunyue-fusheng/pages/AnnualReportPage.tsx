@@ -1,6 +1,7 @@
 import { firstMonthEventMap } from '../data/events/firstMonth'
 import { initialGameStats } from '../data/initialState'
-import type { ChoiceHistoryEntry, GameStats, Language } from '../types/game'
+import { sideHustleRouteConfigs, sideHustleRouteIds } from '../engine/sideHustleResolver'
+import type { ChoiceHistoryEntry, GameStats, Language, SideHustleState } from '../types/game'
 import { localize } from '../utils/localize'
 import { formatMoney, skillLabel, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
@@ -9,18 +10,31 @@ function signed(value: number) {
   return `${value >= 0 ? '+' : '−'}${Math.abs(value)}`
 }
 
-function sideJobLabel(stats: GameStats, flags: string[], language: Language) {
-  if (stats.product >= 45 || flags.includes('sidejob_established') || flags.includes('product_released')) {
+function sideJobLabel(sideHustles: SideHustleState, language: Language) {
+  const unlockedRoutes = sideHustleRouteIds.filter((routeId) => sideHustles.routes[routeId].unlockedAtMonth !== null)
+  if (sideHustles.totalIncomeJpy >= 100_000 || unlockedRoutes.some((routeId) => sideHustles.routes[routeId].level >= 2)) {
     return language === 'zh' ? '另一条路已出现轮廓' : 'もう一つの道が輪郭を持ち始めた'
   }
-  if (stats.product >= 20) return language === 'zh' ? '仍在摸索' : 'まだ模索中'
+  if (unlockedRoutes.length > 0) return language === 'zh' ? '仍在摸索' : 'まだ模索中'
   return language === 'zh' ? '尚未展开' : 'まだ始まっていない'
 }
 
-export function AnnualReportPage({ language, stats, flags, history, onContinue }: {
+function leadingSideHustle(sideHustles: SideHustleState, language: Language) {
+  const routeId = [...sideHustleRouteIds].sort((left, right) => {
+    const leftRoute = sideHustles.routes[left]
+    const rightRoute = sideHustles.routes[right]
+    return rightRoute.level - leftRoute.level || rightRoute.totalIncomeJpy - leftRoute.totalIncomeJpy
+  })[0]
+  const route = sideHustles.routes[routeId]
+  return route.unlockedAtMonth === null
+    ? (language === 'zh' ? '尚无' : 'まだなし')
+    : `${sideHustleRouteConfigs[routeId].label[language]} Lv.${route.level}`
+}
+
+export function AnnualReportPage({ language, stats, sideHustles, history, onContinue }: {
   language: Language
   stats: GameStats
-  flags: string[]
+  sideHustles: SideHustleState
   history: ChoiceHistoryEntry[]
   onContinue: () => void
 }) {
@@ -44,7 +58,9 @@ export function AnnualReportPage({ language, stats, flags, history, onContinue }
       </dl>
       <dl>
         {(['tech', 'workplace', 'product'] as const).map((key) => <div key={key}><dt>{{ tech: language === 'zh' ? '技术' : '技術', workplace: language === 'zh' ? '职场' : '職場', product: language === 'zh' ? '产品' : 'プロダクト' }[key]}</dt><dd>{skillLabel(stats[key], language)}<small>{signed(stats[key] - initialGameStats[key])}</small></dd></div>)}
-        <div><dt>{language === 'zh' ? '副业状态' : '副業状態'}</dt><dd>{sideJobLabel(stats, flags, language)}</dd></div>
+        <div><dt>{language === 'zh' ? '副业状态' : '副業状態'}</dt><dd>{sideJobLabel(sideHustles, language)}</dd></div>
+        <div><dt>{language === 'zh' ? '主要路线' : '主なルート'}</dt><dd>{leadingSideHustle(sideHustles, language)}</dd></div>
+        <div><dt>{language === 'zh' ? '副业累计收入' : '副業累計収入'}</dt><dd>{formatMoney(sideHustles.totalIncomeJpy, 'JPY', language)}</dd></div>
       </dl>
     </div>
     <section className={styles.reportChoices}>

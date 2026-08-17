@@ -91,6 +91,10 @@ export function settleMonth(
   const paymentJpy = base.minimumPaymentJpy + extraPaymentJpy
   const cashJpyAfter = Math.max(0, base.cashAfterMinimumPayment - extraPaymentJpy)
   const debtRmbAfter = Math.max(0, base.debtAfterMinimumPayment - extraPaymentRmb)
+  const sideHustleIncomeJpy = plan.selectedActions.reduce(
+    (total, action) => total + (action.sideHustle?.incomeJpy ?? 0),
+    0,
+  )
 
   return {
     stats: {
@@ -104,12 +108,13 @@ export function settleMonth(
       elapsedMonth: context.elapsedMonth,
       year: context.year,
       month: context.month,
-      cashJpyBefore: stats.cashJpy,
+      cashJpyBefore: plan.openingCashJpy,
       debtRmbBefore: stats.debtRmb,
       actionPointsGranted: plan.actionPointsGranted,
       actionPointsSpent: plan.actionPointsGranted - plan.actionPointsRemaining,
       exchangeRate: plan.exchangeRate,
       salaryJpy: stats.salaryJpy,
+      sideHustleIncomeJpy,
       fixedExpenses: fixedMonthlyExpenses.map((expense) => ({ ...expense })),
       fixedExpensesJpy: FIXED_MONTHLY_EXPENSES_JPY,
       interestRmb: base.interestRmb,

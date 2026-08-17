@@ -197,6 +197,27 @@ export type VolumeProgress = {
 
 export type MonthlyActionSource = 'core' | 'sidejob'
 
+export type SideHustleRouteId = 'freelance' | 'it_materials' | 'content_account' | 'own_product'
+
+export type SideHustleRouteState = {
+  unlockedAtMonth: number | null
+  level: number
+  experience: number
+  totalIncomeJpy: number
+  completedActions: number
+}
+
+export type SideHustleState = {
+  routes: Record<SideHustleRouteId, SideHustleRouteState>
+  totalIncomeJpy: number
+}
+
+export type SideHustleActionOutcome = {
+  routeId: SideHustleRouteId
+  experience: number
+  incomeJpy: number
+}
+
 export type MonthlyActionDefinition = {
   id: string
   source: MonthlyActionSource
@@ -204,12 +225,14 @@ export type MonthlyActionDefinition = {
   description: LocalizedText
   actionPointCost: number
   effects: GameEffects
+  sideHustle?: SideHustleActionOutcome
 }
 
 export type MonthlyActionContext = {
   elapsedMonth: number
   stats: GameStats
   flags: string[]
+  sideHustles: SideHustleState
 }
 
 export type MonthlyActionProvider = (context: MonthlyActionContext) => readonly MonthlyActionDefinition[]
@@ -220,6 +243,7 @@ export type MonthlyActionSelection = {
   label: LocalizedText
   actionPointCost: number
   effects: GameEffects
+  sideHustle?: SideHustleActionOutcome
 }
 
 export type FixedExpenseItem = {
@@ -231,6 +255,7 @@ export type MonthlyPlan = {
   elapsedMonth: number
   year: number
   month: number
+  openingCashJpy: number
   actionPointsGranted: number
   actionPointsRemaining: number
   exchangeRate: number
@@ -248,6 +273,7 @@ export type MonthSettlement = {
   actionPointsSpent: number
   exchangeRate: number
   salaryJpy: number
+  sideHustleIncomeJpy: number
   fixedExpenses: FixedExpenseItem[]
   fixedExpensesJpy: number
   interestRmb: number
@@ -274,6 +300,7 @@ export type GameSaveState = {
   startedAt: string | null
   progress: VolumeProgress
   activeMiniGame: MiniGameSession | null
+  sideHustles: SideHustleState
   monthlyPlan: MonthlyPlan | null
   monthlySettlements: MonthSettlement[]
   debtFreeChoiceId: string | null

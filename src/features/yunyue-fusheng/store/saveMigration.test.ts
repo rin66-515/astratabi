@@ -30,6 +30,7 @@ describe('migrateGameSave', () => {
     expect(migrated.progress.stageDeadlineMonths).toBe(18)
     expect(migrated.progress.elapsedMonths).toBe(1)
     expect(migrated.activeMiniGame).toBeNull()
+    expect(migrated.sideHustles.totalIncomeJpy).toBe(0)
     expect(migrated.monthlyPlan).toBeNull()
     expect(migrated.monthlySettlements).toEqual([])
     expect(migrated.debtFreeChoiceId).toBeNull()
@@ -55,5 +56,21 @@ describe('migrateGameSave', () => {
     expect(migrated.screen).toBe('monthly-cycle')
     expect(migrated.monthlyPlan).toBeNull()
     expect(migrated.stats.exchangeRate).toBe(initialGameStats.exchangeRate)
+  })
+
+  it('adds an empty side hustle state to a v4 save without changing its play state', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      screen: 'monthly-cycle',
+      month: 10,
+      year: 2024,
+      sideHustles: undefined,
+    }, 4)
+
+    expect(migrated.screen).toBe('monthly-cycle')
+    expect(migrated.month).toBe(10)
+    expect(migrated.sideHustles.totalIncomeJpy).toBe(0)
+    expect(migrated.sideHustles.routes.own_product.unlockedAtMonth).toBeNull()
   })
 })

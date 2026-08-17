@@ -27,6 +27,7 @@ export function MonthSettlementPage({ language, settlement, onContinue }: {
         <h2>{language === 'zh' ? '日元收支' : '円収支'}</h2>
         <dl>
           <div><dt>{language === 'zh' ? '月初现金' : '月初現金'}</dt><dd>{formatMoney(settlement.cashJpyBefore, 'JPY', language)}</dd></div>
+          <div><dt>{language === 'zh' ? '副业收入' : '副業収入'}</dt><dd className={styles.positiveAmount}>+{formatMoney(settlement.sideHustleIncomeJpy, 'JPY', language)}</dd></div>
           <div><dt>{language === 'zh' ? '工资到账' : '給与入金'}</dt><dd className={styles.positiveAmount}>+{formatMoney(settlement.salaryJpy, 'JPY', language)}</dd></div>
           {settlement.fixedExpenses.map((expense) => <div key={expense.id}><dt>{expenseLabels[expense.id][language]}</dt><dd>−{formatMoney(expense.amountJpy, 'JPY', language)}</dd></div>)}
           <div><dt>{language === 'zh' ? '还款换汇' : '返済用両替'}</dt><dd>−{formatMoney(settlement.paymentJpy, 'JPY', language)}</dd></div>

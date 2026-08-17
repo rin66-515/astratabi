@@ -5,7 +5,13 @@ import {
   FIXED_MONTHLY_EXPENSES_JPY,
   getMaximumExtraPaymentRmb,
 } from '../engine/monthSettlement'
-import type { GameStats, Language, MonthlyPlan, VolumeProgress } from '../types/game'
+import {
+  experienceRequiredForNextLevel,
+  sideHustleMonthlyActionProvider,
+  sideHustleRouteConfigs,
+  sideHustleRouteIds,
+} from '../engine/sideHustleResolver'
+import type { GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
 import { formatMoney, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
 
@@ -33,6 +39,7 @@ export function MonthlyCyclePage({
   stats,
   progress,
   flags,
+  sideHustles,
   plan,
   onPerformAction,
   onSetExtraPayment,
@@ -44,6 +51,7 @@ export function MonthlyCyclePage({
   stats: GameStats
   progress: VolumeProgress
   flags: string[]
+  sideHustles: SideHustleState
   plan: MonthlyPlan
   onPerformAction: (actionId: string) => void
   onSetExtraPayment: (amountRmb: number) => void
@@ -53,7 +61,9 @@ export function MonthlyCyclePage({
     elapsedMonth: progress.elapsedMonths,
     stats,
     flags,
-  })
+    sideHustles,
+  }, [sideHustleMonthlyActionProvider])
+  const coreActions = actions.filter((action) => action.source === 'core')
   const maximumExtraPaymentRmb = getMaximumExtraPaymentRmb(stats, plan)
   const rateJpyPerRmb = plan.exchangeRate > 0 ? 1 / plan.exchangeRate : 0
 
@@ -89,7 +99,7 @@ export function MonthlyCyclePage({
           <small>{language === 'zh' ? '行动一经选择不可撤回' : '選んだ行動は取り消せない'}</small>
         </div>
         <div className={styles.monthActionList}>
-          {actions.map((action) => <button
+          {coreActions.map((action) => <button
             type="button"
             key={action.id}
             disabled={action.actionPointCost > plan.actionPointsRemaining}
@@ -144,6 +154,47 @@ export function MonthlyCyclePage({
         </div>
       </section>
     </div>
+
+    <section className={styles.sideHustlePanel}>
+      <div className={styles.monthPanelHeading}>
+        <div>
+          <span>03</span>
+          <h2>{language === 'zh' ? '副业路线' : '副業ルート'}</h2>
+        </div>
+        <small>{language === 'zh'
+          ? `累计收入 ${formatMoney(sideHustles.totalIncomeJpy, 'JPY', language)}`
+          : `累計収入 ${formatMoney(sideHustles.totalIncomeJpy, 'JPY', language)}`}</small>
+      </div>
+      <div className={styles.sideHustleGrid}>
+        {sideHustleRouteIds.map((routeId) => {
+          const route = sideHustles.routes[routeId]
+          const config = sideHustleRouteConfigs[routeId]
+          const action = actions.find((candidate) => candidate.sideHustle?.routeId === routeId)
+          const unlocked = route.unlockedAtMonth !== null || Boolean(action)
+          const experienceRequired = experienceRequiredForNextLevel(route.level)
+          return <article key={routeId} className={unlocked ? styles.sideHustleUnlocked : styles.sideHustleLocked}>
+            <header>
+              <div><small>{unlocked ? `Lv.${route.level}` : 'LOCKED'}</small><h3>{config.label[language]}</h3></div>
+              <strong>{formatMoney(route.totalIncomeJpy, 'JPY', language)}</strong>
+            </header>
+            <p>{config.description[language]}</p>
+            {unlocked
+              ? <>
+                <div className={styles.sideHustleProgress}><i style={{ width: `${Math.min(100, route.experience / experienceRequired * 100)}%` }} /><span>{route.experience} / {experienceRequired} XP</span></div>
+                {action && <button
+                  type="button"
+                  disabled={action.actionPointCost > plan.actionPointsRemaining}
+                  onClick={() => onPerformAction(action.id)}
+                >
+                  <span>{action.label[language]}</span>
+                  <small>−{action.actionPointCost} AP · +{formatMoney(action.sideHustle?.incomeJpy ?? 0, 'JPY', language)}</small>
+                </button>}
+              </>
+              : <small>{config.unlockDescription[language]}</small>}
+          </article>
+        })}
+      </div>
+    </section>
 
     <div className={styles.monthClosingBar}>
       <small>{language === 'zh'

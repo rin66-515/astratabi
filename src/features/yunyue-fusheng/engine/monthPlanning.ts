@@ -37,6 +37,7 @@ export function createMonthlyPlan(
 
   return {
     ...context,
+    openingCashJpy: stats.cashJpy,
     actionPointsGranted,
     actionPointsRemaining: actionPointsGranted,
     exchangeRate,
