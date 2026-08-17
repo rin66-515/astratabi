@@ -229,6 +229,56 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().flags).toContain('read_air_timed_out')
   })
 
+  it('launches incident response and design review from existing formal events', () => {
+    const scenarios = [
+      {
+        eventId: 'monthly-sidejob-first-product-user',
+        optionId: 'reproduce-and-reply',
+        configId: 'incident-response-v1',
+        type: 'incident_response' as const,
+        answers: ['confirm-impact', 'contain-and-communicate', 'verify-and-record'],
+        expectedFlag: 'incident_response_controlled',
+      },
+      {
+        eventId: 'monthly-work-scope-creep',
+        optionId: 'clarify-scope',
+        configId: 'design-review-v1',
+        type: 'design_review' as const,
+        answers: ['trace-source', 'build-consistency-path', 'classify-and-own'],
+        expectedFlag: 'design_review_traceable',
+      },
+    ]
+
+    for (const scenario of scenarios) {
+      const state = createInitialGameSaveState('zh')
+      useGameStore.setState({
+        ...state,
+        screen: 'event',
+        currentEventId: scenario.eventId,
+        monthlyEventSlot: {
+          elapsedMonth: 8,
+          kind: 'minigame',
+          eventId: scenario.eventId,
+          status: 'pending',
+          miniGame: { type: scenario.type, configId: scenario.configId },
+        },
+        progress: { ...state.progress, elapsedMonths: 8 },
+      })
+
+      useGameStore.getState().chooseOption(scenario.optionId)
+      useGameStore.getState().advance()
+      expect(useGameStore.getState().activeMiniGame).toMatchObject({
+        configId: scenario.configId,
+        stageIndex: 0,
+      })
+      for (const answer of scenario.answers) useGameStore.getState().chooseMonthlyMiniGameOption(answer)
+      expect(useGameStore.getState().activeMiniGame?.result).toMatchObject({ grade: 'S', score: 9 })
+      expect(useGameStore.getState().flags).toContain(scenario.expectedFlag)
+      useGameStore.getState().continueAfterMonthlyMiniGame()
+      expect(useGameStore.getState().screen).toBe('monthly-cycle')
+    }
+  })
+
   it('allows deliberate overdraft to -2 AP and records one negative AP month', () => {
     const state = useGameStore.getState()
     useGameStore.setState({

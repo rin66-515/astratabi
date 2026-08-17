@@ -4,7 +4,7 @@ const text = (zh: string, ja: string): LocalizedText => ({ zh, ja })
 
 export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
   {
-    kind: 'normal',
+    kind: 'minigame',
     event: {
       id: 'monthly-work-scope-creep',
       title: text('“顺便再确认一下”', '「ついでに、もう一つだけ」'),
@@ -16,6 +16,7 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
       ],
       weight: 1.1,
       conditions: [{ type: 'elapsedMonth', operator: 'gte', value: 2 }],
+      miniGame: { type: 'design_review', configId: 'design-review-v1' },
       options: [
         {
           id: 'clarify-scope',
@@ -277,7 +278,7 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
     },
   },
   {
-    kind: 'major',
+    kind: 'normal',
     event: {
       id: 'monthly-institution-medical-paperwork',
       title: text('病名之外的手续', '病名の外側にある手続き'),
@@ -286,7 +287,7 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
         text('复查后，你拿到一叠关于医疗补助和后续申请的说明。', '再検査のあと、医療費助成と今後の申請についての案内を受け取った。'),
         text('身体的事已经够难，制度又要求你按格子证明它。', '身体のことだけでも難しいのに、制度はそれを枠の中で証明するよう求めてくる。'),
       ],
-      weight: 1,
+      weight: 0.65,
       conditions: [
         { type: 'flag', flag: 'health_follow_up_booked' },
         { type: 'elapsedMonth', operator: 'gte', value: 6 },
@@ -471,7 +472,7 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
     ],
   },
   {
-    kind: 'normal',
+    kind: 'minigame',
     event: {
       id: 'monthly-sidejob-first-product-user',
       title: text('第一个产品用户', '最初のプロダクト利用者'),
@@ -482,20 +483,21 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
       ],
       weight: 1,
       conditions: [{ type: 'sideHustle', routeId: 'own_product', field: 'completedActions', operator: 'gte', value: 2 }],
+      miniGame: { type: 'incident_response', configId: 'incident-response-v1' },
       options: [
         {
           id: 'reproduce-and-reply',
           tone: 'realistic',
-          label: text('先复现、说明影响范围，再给出处理时间', '再現し、影響範囲を説明してから対応時刻を伝える'),
-          effects: { product: 4, tech: 2, workTrust: 2, stress: 2 },
+          label: text('先回复已经收到，再复现并建立处理记录', '受領連絡を返し、再現確認と対応記録を始める'),
+          effects: { product: 1, tech: 1, workTrust: 1, stress: 1 },
           addFlags: ['product_first_user_supported'],
-          response: [text('修复只用了四十分钟。把情况说清楚，却是你第一次真正像在维护一个产品。', '修正は四十分で終わった。状況を説明した時、初めて本当にプロダクトを運用している気がした。')],
+          response: [text('客户知道消息已经有人接住。你打开日志，第一次以维护者的身份进入问题。', '利用者には、連絡が受け止められたことが伝わった。ログを開き、初めて運用担当として問題に入る。')],
         },
         {
           id: 'fix-silently',
-          label: text('先悄悄修掉，等确认没问题再回复', '先に黙って直し、問題がないと確認してから返事をする'),
-          effects: { tech: 3, product: 1, stress: 5, obsession: 2, workTrust: -1 },
-          response: [text('问题修好了。等待回复的那个人，却不知道这段时间发生了什么。', '不具合は直った。返事を待つ人には、その間に何が起きていたか分からないままだった。')],
+          label: text('先打开代码，找到原因后再回复', '先にコードを開き、原因が分かってから返事をする'),
+          effects: { tech: 1, stress: 3, obsession: 1, workTrust: -1 },
+          response: [text('代码已经打开。等待回复的人，却不知道你是否看见了消息。', 'コードは開いた。返事を待つ人には、連絡を見たかどうかも分からない。')],
         },
       ],
     },

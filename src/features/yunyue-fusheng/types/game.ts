@@ -129,7 +129,10 @@ export type MiniGameStageConfig = {
 export type MiniGameConfig = {
   id: string
   type: MiniGameType
+  title: LocalizedText
+  resultTitle: LocalizedText
   stages: readonly MiniGameStageConfig[]
+  results: Record<MiniGameGrade, Omit<MiniGameResult, 'score' | 'grade'>>
 }
 
 export type MiniGameTrigger = {

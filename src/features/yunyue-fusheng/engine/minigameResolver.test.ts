@@ -1,14 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import { initialGameStats } from '../data/initialState'
-import { readTheAirConfig } from '../data/miniGames'
+import { designReviewConfig, incidentResponseConfig, miniGameConfigs, readTheAirConfig } from '../data/miniGames'
 import {
   answerMiniGameStage,
   applyMiniGameResult,
   createMiniGameSession,
   MINI_GAME_TIMEOUT_ANSWER,
+  resolveMiniGameResult,
 } from './minigameResolver'
 
 describe('applyMiniGameResult', () => {
+  it('keeps every playable config bilingual, timed and grounded by a realistic option', () => {
+    expect(miniGameConfigs.size).toBe(3)
+    for (const config of miniGameConfigs.values()) {
+      expect(config.title.zh.length).toBeGreaterThan(0)
+      expect(config.title.ja.length).toBeGreaterThan(0)
+      expect(config.stages).toHaveLength(3)
+      for (const stage of config.stages) {
+        expect(stage.timeLimitMs).toBeGreaterThan(0)
+        expect(stage.timeout?.resultText.zh.length).toBeGreaterThan(0)
+        expect(stage.timeout?.resultText.ja.length).toBeGreaterThan(0)
+        expect(stage.options.some((option) => option.tone === 'realistic')).toBe(true)
+      }
+    }
+  })
+
   it('applies effects through the shared engine and adds flags once', () => {
     const result = applyMiniGameResult(
       { stats: { ...initialGameStats }, flags: ['existing'] },
@@ -54,5 +70,16 @@ describe('applyMiniGameResult', () => {
       'leave-or-stay': MINI_GAME_TIMEOUT_ANSWER,
     })
     expect(session.result).toMatchObject({ grade: 'D', score: 0 })
+  })
+
+  it.each([
+    [incidentResponseConfig, 'incident_response_controlled'],
+    [designReviewConfig, 'design_review_traceable'],
+  ])('resolves every completed framework config through its own result profile', (config, expectedFlag) => {
+    const bestAnswers = Object.fromEntries(config.stages.map((stage) => [stage.id, stage.options[0].id]))
+    const result = resolveMiniGameResult(config, bestAnswers)
+
+    expect(result).toMatchObject({ score: 9, grade: 'S' })
+    expect(result.flags).toContain(expectedFlag)
   })
 })

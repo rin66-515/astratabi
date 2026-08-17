@@ -58,9 +58,9 @@ export function MiniGamePage({
     const effects = visibleEffectEntries(session.result.effects, language)
     return <section className={styles.miniGamePage}>
       <div className={styles.miniGameResult}>
-        <p className={styles.kicker}>{language === 'zh' ? '会社读空气 · 结果' : '会社の空気を読む・結果'}</p>
+        <p className={styles.kicker}>{localize(config.title, language)} · {language === 'zh' ? '结果' : '結果'}</p>
         <div className={styles.gradeStamp} aria-label={`${language === 'zh' ? '评价' : '評価'} ${session.result.grade}`}>{session.result.grade}</div>
-        <h1>{language === 'zh' ? '会议散了' : '会議が終わった'}</h1>
+        <h1>{localize(config.resultTitle, language)}</h1>
         {session.result.resultText && <p>{localize(session.result.resultText, language)}</p>}
         {effects.length > 0 && <ul className={styles.effectList}>{effects.map((effect) => <li className={effect.positive ? styles.positive : styles.negative} key={effect.key}><span>{effect.label}</span><strong>{effect.value}</strong></li>)}</ul>}
         <button className={styles.primaryButton} type="button" onClick={onContinue}>{language === 'zh' ? '回到这个月' : '今月へ戻る'}</button>
@@ -85,7 +85,7 @@ export function MiniGamePage({
     <div className={styles.miniGamePanel}>
       <header className={styles.miniGameHeader}>
         <div>
-          <p className={styles.kicker}>{language === 'zh' ? '会社读空气' : '会社の空気を読む'}</p>
+          <p className={styles.kicker}>{localize(config.title, language)}</p>
           <strong>{session.stageIndex + 1} / {config.stages.length}</strong>
         </div>
         {seconds !== null && <output className={seconds <= 3 ? styles.timerUrgent : ''} aria-live="polite">{seconds.toString().padStart(2, '0')}</output>}

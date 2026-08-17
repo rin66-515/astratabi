@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialSideHustleState, initialGameStats } from './initialState'
-import { miniGamePlaceholders } from './miniGames'
+import { miniGameConfigs } from './miniGames'
 import { monthlyEventDefinitions } from './monthlyEvents'
 import { getAvailableEvents } from '../engine/eventSelection'
 
@@ -15,15 +15,16 @@ describe('formal monthly event content', () => {
     }
   })
 
-  it('covers the requested content areas and keeps two future minigames as placeholders', () => {
+  it('covers the requested content areas and registers all three playable minigames', () => {
     const categories = new Set(monthlyEventDefinitions.map(({ event }) => event.category))
     for (const category of ['work', 'health', 'life', 'institution', 'family', 'sidejob'] as const) {
       expect(categories.has(category)).toBe(true)
     }
-    expect(miniGamePlaceholders).toEqual([
-      { type: 'incident_response', configId: 'incident-response-placeholder', status: 'placeholder' },
-      { type: 'design_review', configId: 'design-review-placeholder', status: 'placeholder' },
+    expect([...miniGameConfigs.values()].map((config) => config.type).sort()).toEqual([
+      'design_review', 'incident_response', 'read_the_air',
     ])
+    expect(monthlyEventDefinitions.filter(({ kind }) => kind === 'minigame').map(({ event }) => event.miniGame?.type).sort())
+      .toEqual(['design_review', 'incident_response', 'read_the_air'])
   })
 
   it('does not expose a side-hustle feedback event before its route has real activity', () => {

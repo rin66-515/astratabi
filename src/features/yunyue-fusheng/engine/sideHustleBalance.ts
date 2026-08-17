@@ -13,7 +13,7 @@ import type {
   SideHustleState,
 } from '../types/game'
 import { applyEffects } from './applyEffects'
-import { resolveReadTheAirResult, MINI_GAME_TIMEOUT_ANSWER } from './minigameResolver'
+import { resolveMiniGameResult, MINI_GAME_TIMEOUT_ANSWER } from './minigameResolver'
 import { createMonthlyPlan } from './monthPlanning'
 import { selectMonthlyEventSlot } from './monthlyEventSlot'
 import { getMaximumExtraPaymentRmb, settleMonth } from './monthSettlement'
@@ -233,14 +233,18 @@ function applySimulatedMonthlyEvent(
   if (!event.miniGame) return
   const config = miniGameConfigs.get(event.miniGame.configId)
   if (!config) return
-  const capability = state.stats.workplace + state.stats.boundary
-    + state.stats.japanese * 0.25 - state.stats.stress * 0.35
+  const capability = config.type === 'incident_response'
+    ? state.stats.tech + state.stats.product * 0.5 + state.stats.workTrust * 0.25 - state.stats.stress * 0.25
+    : config.type === 'design_review'
+      ? state.stats.tech + state.stats.workplace + state.stats.product * 0.25 - state.stats.stress * 0.25
+      : state.stats.workplace + state.stats.boundary
+        + state.stats.japanese * 0.25 - state.stats.stress * 0.35
   const answers = Object.fromEntries(config.stages.map((stage) => {
     if (capability >= 75) return [stage.id, stage.options[0]?.id ?? MINI_GAME_TIMEOUT_ANSWER]
     if (capability >= 45) return [stage.id, stage.options[1]?.id ?? MINI_GAME_TIMEOUT_ANSWER]
     return [stage.id, MINI_GAME_TIMEOUT_ANSWER]
   }))
-  const result = resolveReadTheAirResult(config, answers)
+  const result = resolveMiniGameResult(config, answers)
   state.stats = applyEffects(state.stats, result.effects)
   state.flags = [...new Set([...state.flags, ...(result.flags ?? [])])]
 }
