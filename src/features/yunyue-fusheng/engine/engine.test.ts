@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { firstMonthEvents } from '../data/events/firstMonth'
-import { initialGameStats } from '../data/initialState'
+import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
 import type { EventContext, GameEvent } from '../types/game'
 import { applyEffects } from './applyEffects'
 import { checkCondition } from './checkCondition'
@@ -9,9 +9,11 @@ import { getAvailableEvents, pickNextStoryEvent, pickWeightedEvent } from './eve
 function context(overrides: Partial<EventContext> = {}): EventContext {
   return {
     month: 8,
+    elapsedMonth: 1,
     stats: { ...initialGameStats },
     flags: [],
     completedEventIds: [],
+    sideHustles: createInitialSideHustleState(),
     ...overrides,
   }
 }
@@ -30,12 +32,21 @@ describe('applyEffects', () => {
 })
 
 describe('checkCondition', () => {
-  it('supports stat, flag, completed-event and month conditions', () => {
-    const state = context({ flags: ['planned_evening_study'], completedEventIds: ['main-03-impact-check'] })
+  it('supports story, elapsed-month and side-hustle conditions', () => {
+    const sideHustles = createInitialSideHustleState()
+    sideHustles.routes.freelance.completedActions = 2
+    const state = context({
+      elapsedMonth: 6,
+      flags: ['planned_evening_study'],
+      completedEventIds: ['main-03-impact-check'],
+      sideHustles,
+    })
     expect(checkCondition({ type: 'stat', stat: 'stress', operator: 'gte', value: 30 }, state)).toBe(true)
     expect(checkCondition({ type: 'flag', flag: 'planned_evening_study' }, state)).toBe(true)
     expect(checkCondition({ type: 'completedEvent', eventId: 'main-03-impact-check' }, state)).toBe(true)
     expect(checkCondition({ type: 'month', operator: 'eq', value: 8 }, state)).toBe(true)
+    expect(checkCondition({ type: 'elapsedMonth', operator: 'gte', value: 6 }, state)).toBe(true)
+    expect(checkCondition({ type: 'sideHustle', routeId: 'freelance', field: 'completedActions', operator: 'gte', value: 2 }, state)).toBe(true)
   })
 })
 

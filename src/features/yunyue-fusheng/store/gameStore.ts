@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { firstMonthEventMap, firstMonthEvents } from '../data/events/firstMonth'
 import { createEndingDebugState } from '../data/endingDebugScenarios'
 import { createInitialGameSaveState } from '../data/initialState'
+import { miniGameConfigs } from '../data/miniGames'
 import { monthlyEventDefinitions, monthlyEventMap } from '../data/monthlyEvents'
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
 import { applyEffects } from '../engine/applyEffects'
@@ -17,7 +18,12 @@ import {
   completeMonthlyMiniGameSlot,
   selectMonthlyEventSlot,
 } from '../engine/monthlyEventSlot'
-import { applyMiniGameResult } from '../engine/minigameResolver'
+import {
+  answerMiniGameStage,
+  applyMiniGameResult,
+  createMiniGameSession,
+  MINI_GAME_TIMEOUT_ANSWER,
+} from '../engine/minigameResolver'
 import { applyMonthOpeningRecovery, canPerformMonthlyAction } from '../engine/recoveryResolver'
 import {
   applySideHustleOutcome,
@@ -31,7 +37,6 @@ import type {
   GameSaveState,
   GameStats,
   Language,
-  MiniGameResult,
   MonthlyPlan,
 } from '../types/game'
 import { trackEvent } from '../utils/trackEvent'
@@ -54,7 +59,9 @@ type GameActions = {
   continueAfterMonthSettlement: () => void
   completeAnnualReport: () => void
   continueAfterStageEnding: () => void
-  completeMonthlyMiniGame: (result: MiniGameResult) => void
+  chooseMonthlyMiniGameOption: (optionId: string) => void
+  timeoutMonthlyMiniGame: () => void
+  continueAfterMonthlyMiniGame: () => void
   chooseDebtFreeMonth: (optionId: string) => void
   completeDebtFreeScene: () => void
   simulateFinalEnding: (endingId: FinalEndingId) => void
@@ -74,9 +81,11 @@ function mergeEffects(left: GameEffects, right: GameEffects = {}): GameEffects {
 function contextOf(state: GameSaveState, stats = state.stats, flags = state.flags): EventContext {
   return {
     month: state.month,
+    elapsedMonth: state.progress.elapsedMonths,
     stats,
     flags,
     completedEventIds: state.completedEventIds,
+    sideHustles: state.sideHustles,
   }
 }
 
@@ -105,9 +114,11 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
   }, Math.random, openingRecovery.actionPointModifier)
   const monthlyEventSlot = selectMonthlyEventSlot(monthlyEventDefinitions, {
     month: calendar.month,
+    elapsedMonth: elapsedMonths,
     stats: openingRecovery.stats,
     flags: state.flags,
     completedEventIds: state.completedEventIds,
+    sideHustles,
   }, elapsedMonths)
   return {
     ...calendar,
@@ -254,22 +265,16 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     if (state.monthlyEventSlot?.eventId === event.id) {
       const monthlyEventSlot = completeMonthlyEventSlot(state.monthlyEventSlot)
       if (monthlyEventSlot.status === 'mini_game_pending' && monthlyEventSlot.miniGame) {
-        const startedAt = new Date().toISOString()
+        const config = miniGameConfigs.get(monthlyEventSlot.miniGame.configId)
+        if (!config) throw new Error(`Unknown MiniGame config ${monthlyEventSlot.miniGame.configId}`)
         set({
           screen: 'monthly-minigame',
           currentEventId: null,
           resolution: null,
           monthlyEventSlot,
-          activeMiniGame: {
-            eventId: event.id,
-            configId: monthlyEventSlot.miniGame.configId,
-            type: monthlyEventSlot.miniGame.type,
-            stageIndex: 0,
-            answers: {},
-            stageStartedAt: startedAt,
-            deadlineAt: null,
-          },
+          activeMiniGame: createMiniGameSession(event.id, config),
         })
+        trackEvent('minigame_start', { eventId: event.id, configId: config.id })
       } else {
         set({
           screen: 'monthly-cycle',
@@ -289,9 +294,11 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
 
     const nextContext: EventContext = {
       month: state.month,
+      elapsedMonth: state.progress.elapsedMonths,
       stats: state.stats,
       flags: state.flags,
       completedEventIds: state.completedEventIds,
+      sideHustles: state.sideHustles,
     }
     const nextEvent = pickNextStoryEvent(firstMonthEvents, nextContext)
     set({ currentEventId: nextEvent?.id ?? null, resolution: null })
@@ -460,20 +467,71 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     set(nextMonthlyCycle(progressedState))
   },
 
-  completeMonthlyMiniGame: (result) => {
+  chooseMonthlyMiniGameOption: (optionId) => {
     const state = get()
     if (
       state.screen !== 'monthly-minigame'
       || !state.activeMiniGame
+      || state.activeMiniGame.result
       || state.monthlyEventSlot?.status !== 'mini_game_pending'
     ) return
-    const applied = applyMiniGameResult(state, result)
+    const config = miniGameConfigs.get(state.activeMiniGame.configId)
+    if (!config) return
+    const now = new Date()
+    const expired = state.activeMiniGame.deadlineAt !== null
+      && now.getTime() >= new Date(state.activeMiniGame.deadlineAt).getTime()
+    const answerId = expired ? MINI_GAME_TIMEOUT_ANSWER : optionId
+    const activeMiniGame = answerMiniGameStage(state.activeMiniGame, config, answerId, now)
+    if (answerId === MINI_GAME_TIMEOUT_ANSWER) {
+      trackEvent('minigame_timeout', { configId: config.id, stageIndex: state.activeMiniGame.stageIndex })
+    } else {
+      trackEvent('minigame_choice', { configId: config.id, stageIndex: state.activeMiniGame.stageIndex, optionId })
+    }
+    const applied = activeMiniGame.result ? applyMiniGameResult(state, activeMiniGame.result) : state
     set({
-      screen: 'monthly-cycle',
       stats: applied.stats,
       flags: applied.flags,
+      activeMiniGame,
+    })
+  },
+
+  timeoutMonthlyMiniGame: () => {
+    const state = get()
+    if (
+      state.screen !== 'monthly-minigame'
+      || !state.activeMiniGame
+      || state.activeMiniGame.result
+      || state.monthlyEventSlot?.status !== 'mini_game_pending'
+    ) return
+    const config = miniGameConfigs.get(state.activeMiniGame.configId)
+    if (!config) return
+    const activeMiniGame = answerMiniGameStage(
+      state.activeMiniGame,
+      config,
+      MINI_GAME_TIMEOUT_ANSWER,
+      new Date(),
+    )
+    const applied = activeMiniGame.result ? applyMiniGameResult(state, activeMiniGame.result) : state
+    set({ stats: applied.stats, flags: applied.flags, activeMiniGame })
+    trackEvent('minigame_timeout', { configId: config.id, stageIndex: state.activeMiniGame.stageIndex })
+  },
+
+  continueAfterMonthlyMiniGame: () => {
+    const state = get()
+    if (
+      state.screen !== 'monthly-minigame'
+      || !state.activeMiniGame?.result
+      || state.monthlyEventSlot?.status !== 'mini_game_pending'
+    ) return
+    set({
+      screen: 'monthly-cycle',
       activeMiniGame: null,
       monthlyEventSlot: completeMonthlyMiniGameSlot(state.monthlyEventSlot),
+    })
+    trackEvent('minigame_complete', {
+      configId: state.activeMiniGame.configId,
+      grade: state.activeMiniGame.result.grade,
+      score: state.activeMiniGame.result.score,
     })
   },
 
@@ -513,7 +571,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   },
 }), {
   name: SAVE_KEY,
-  version: 7,
+  version: 8,
   storage: createJSONStorage(() => window.localStorage),
   migrate: migrateGameSave,
   partialize: (state): GameSaveState => ({

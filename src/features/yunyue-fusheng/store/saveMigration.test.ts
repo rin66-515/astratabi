@@ -91,8 +91,8 @@ describe('migrateGameSave', () => {
       },
     }, 6)
 
-    expect(migrated.screen).toBe('monthly-minigame')
-    expect(migrated.monthlyEventSlot?.status).toBe('mini_game_pending')
+    expect(migrated.screen).toBe('monthly-cycle')
+    expect(migrated.monthlyEventSlot?.status).toBe('completed')
     expect(migrated.monthlyEventSlot?.miniGame?.configId).toBe('read-air-v1')
   })
 
@@ -127,6 +127,31 @@ describe('migrateGameSave', () => {
       actionPointsOverdrawn: 0,
       negativeActionPointMonth: false,
       consequenceEffects: {},
+    })
+  })
+
+  it('preserves an in-progress v8 minigame deadline and answers', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      screen: 'monthly-minigame',
+      activeMiniGame: {
+        eventId: 'monthly-work-read-the-air',
+        configId: 'read-the-air-v1',
+        type: 'read_the_air',
+        stageIndex: 1,
+        answers: { 'meeting-close': 'confirm-decision' },
+        stageStartedAt: '2026-08-18T00:00:02.000Z',
+        deadlineAt: '2026-08-18T00:00:12.000Z',
+        result: null,
+      },
+    }, 8)
+
+    expect(migrated.activeMiniGame).toMatchObject({
+      stageIndex: 1,
+      answers: { 'meeting-close': 'confirm-decision' },
+      deadlineAt: '2026-08-18T00:00:12.000Z',
+      result: null,
     })
   })
 })

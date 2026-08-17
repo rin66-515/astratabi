@@ -21,6 +21,14 @@ export function checkCondition(condition: EventCondition, context: EventContext)
       return context.completedEventIds.includes(condition.eventId) === (condition.completed ?? true)
     case 'month':
       return compare(context.month, condition.operator, condition.value)
+    case 'elapsedMonth':
+      return compare(context.elapsedMonth, condition.operator, condition.value)
+    case 'sideHustle':
+      return compare(
+        context.sideHustles.routes[condition.routeId][condition.field],
+        condition.operator,
+        condition.value,
+      )
   }
 }
 

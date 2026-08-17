@@ -5,8 +5,10 @@ import { localize } from '../utils/localize'
 import { formatMoney, statusLabel, visibleEffectEntries } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
 
-export function GamePage({ event, stats, language, resolution, onChoose, onAdvance }: {
+export function GamePage({ event, year, month, stats, language, resolution, onChoose, onAdvance }: {
   event: GameEvent
+  year: number
+  month: number
   stats: GameStats
   language: Language
   resolution: ChoiceResolution | null
@@ -18,7 +20,7 @@ export function GamePage({ event, stats, language, resolution, onChoose, onAdvan
 
   return <section className={styles.gamePage}>
     <header className={styles.gameHeader}>
-      <div><p>2024.08</p><strong>{language === 'zh' ? '东京' : '東京'}</strong></div>
+      <div><p>{year}.{String(month).padStart(2, '0')}</p><strong>{language === 'zh' ? '东京' : '東京'}</strong></div>
       <button type="button" onClick={() => setDrawerOpen(true)}>{language === 'zh' ? '人物笺' : '人物帖'}</button>
     </header>
     <dl className={styles.statusStrip}>

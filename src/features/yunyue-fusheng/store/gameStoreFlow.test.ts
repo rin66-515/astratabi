@@ -52,11 +52,11 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().progress.finalEnding).toBeNull()
 
     useGameStore.getState().completeAnnualReport()
-    expect(useGameStore.getState().screen).toBe('monthly-cycle')
+    expect(useGameStore.getState().screen).toBe('event')
     expect(useGameStore.getState().progress.elapsedMonths).toBe(13)
     expect(useGameStore.getState().monthlyEventSlot).toMatchObject({
       elapsedMonth: 13,
-      status: 'none',
+      status: 'pending',
     })
   })
 
@@ -69,12 +69,12 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().progress.finalEnding).toBeNull()
 
     useGameStore.getState().continueAfterStageEnding()
-    expect(useGameStore.getState().screen).toBe('monthly-cycle')
+    expect(useGameStore.getState().screen).toBe('event')
     expect(useGameStore.getState().progress.elapsedMonths).toBe(19)
     expect(useGameStore.getState().progress.resolvedStageEndingMonths).toContain(18)
     expect(useGameStore.getState().monthlyEventSlot).toMatchObject({
       elapsedMonth: 19,
-      status: 'none',
+      status: 'pending',
     })
   })
 
@@ -152,7 +152,7 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().screen).toBe('month-settlement')
   })
 
-  it('does not reroll an empty monthly event slot while preparing the same month', () => {
+  it('does not reroll a selected monthly event while preparing the same month', () => {
     const state = useGameStore.getState()
     useGameStore.setState({
       ...state,
@@ -162,10 +162,71 @@ describe('playable ending flow', () => {
 
     useGameStore.getState().enterNextMonth()
     const selectedSlot = useGameStore.getState().monthlyEventSlot
-    expect(selectedSlot).toMatchObject({ elapsedMonth: 2, status: 'none' })
+    expect(selectedSlot).toMatchObject({ elapsedMonth: 2, status: 'pending' })
 
     useGameStore.getState().prepareMonth()
     expect(useGameStore.getState().monthlyEventSlot).toEqual(selectedSlot)
+  })
+
+  it('runs the read-the-air trigger through three stages and returns to the month', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'event',
+      currentEventId: 'monthly-work-read-the-air',
+      resolution: null,
+      monthlyEventSlot: {
+        elapsedMonth: 4,
+        kind: 'minigame',
+        eventId: 'monthly-work-read-the-air',
+        status: 'pending',
+        miniGame: { type: 'read_the_air', configId: 'read-the-air-v1' },
+      },
+      progress: { ...state.progress, elapsedMonths: 4 },
+    })
+
+    useGameStore.getState().chooseOption('enter-meeting')
+    useGameStore.getState().advance()
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'monthly-minigame',
+      activeMiniGame: { stageIndex: 0, result: null },
+    })
+    expect(useGameStore.getState().activeMiniGame?.deadlineAt).not.toBeNull()
+
+    useGameStore.getState().chooseMonthlyMiniGameOption('confirm-decision')
+    useGameStore.getState().chooseMonthlyMiniGameOption('confirm-owner-and-done')
+    useGameStore.getState().chooseMonthlyMiniGameOption('summarize-and-leave')
+    expect(useGameStore.getState().activeMiniGame?.result).toMatchObject({ grade: 'S', score: 9 })
+    expect(useGameStore.getState().monthlyEventSlot?.status).toBe('mini_game_pending')
+
+    useGameStore.getState().continueAfterMonthlyMiniGame()
+    expect(useGameStore.getState().screen).toBe('monthly-cycle')
+    expect(useGameStore.getState().activeMiniGame).toBeNull()
+    expect(useGameStore.getState().monthlyEventSlot?.status).toBe('completed')
+  })
+
+  it('accepts staged timeouts as a D minigame result', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'event',
+      currentEventId: 'monthly-work-read-the-air',
+      resolution: null,
+      monthlyEventSlot: {
+        elapsedMonth: 4,
+        kind: 'minigame',
+        eventId: 'monthly-work-read-the-air',
+        status: 'pending',
+        miniGame: { type: 'read_the_air', configId: 'read-the-air-v1' },
+      },
+      progress: { ...state.progress, elapsedMonths: 4 },
+    })
+    useGameStore.getState().chooseOption('enter-meeting')
+    useGameStore.getState().advance()
+    useGameStore.getState().timeoutMonthlyMiniGame()
+    useGameStore.getState().timeoutMonthlyMiniGame()
+    useGameStore.getState().timeoutMonthlyMiniGame()
+
+    expect(useGameStore.getState().activeMiniGame?.result).toMatchObject({ grade: 'D', score: 0 })
+    expect(useGameStore.getState().flags).toContain('read_air_timed_out')
   })
 
   it('allows deliberate overdraft to -2 AP and records one negative AP month', () => {

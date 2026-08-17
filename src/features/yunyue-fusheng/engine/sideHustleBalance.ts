@@ -1,6 +1,9 @@
 import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
+import { miniGameConfigs } from '../data/miniGames'
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
+import { monthlyEventDefinitions, monthlyEventMap } from '../data/monthlyEvents'
 import type {
+  EventCategory,
   GameStats,
   MonthSettlement,
   MonthlyActionDefinition,
@@ -10,7 +13,9 @@ import type {
   SideHustleState,
 } from '../types/game'
 import { applyEffects } from './applyEffects'
+import { resolveReadTheAirResult, MINI_GAME_TIMEOUT_ANSWER } from './minigameResolver'
 import { createMonthlyPlan } from './monthPlanning'
+import { selectMonthlyEventSlot } from './monthlyEventSlot'
 import { getMaximumExtraPaymentRmb, settleMonth } from './monthSettlement'
 import { applyMonthOpeningRecovery, canPerformMonthlyAction } from './recoveryResolver'
 import {
@@ -43,6 +48,9 @@ export type BalanceRunResult = {
   recoveryDebt: number
   negativeActionPointMonths: number
   routeLevels: Record<SideHustleRouteId, number>
+  eventsTriggered: number
+  sideHustleFeedbackEvents: number
+  eventCategoryCounts: Partial<Record<EventCategory, number>>
 }
 
 export type PercentileSummary = {
@@ -66,6 +74,8 @@ export type BalanceScenarioSummary = {
   stress: PercentileSummary
   recoveryDebt: PercentileSummary
   negativeActionPointMonths: PercentileSummary
+  eventsTriggered: PercentileSummary
+  sideHustleFeedbackEvents: PercentileSummary
   medianRouteLevels: Record<SideHustleRouteId, number>
 }
 
@@ -76,6 +86,9 @@ type SimulationState = {
   actionPointsSpent: number
   latestSettlement: MonthSettlement | null
   negativeActionPointMonths: number
+  flags: string[]
+  completedEventIds: string[]
+  eventCategoryCounts: Partial<Record<EventCategory, number>>
 }
 
 const BALANCE_HORIZONS = [12, 18, 24] as const
@@ -190,6 +203,48 @@ function applyAction(
   plan.selectedActions.push(selection)
 }
 
+function applySimulatedMonthlyEvent(
+  state: SimulationState,
+  calendar: { year: number; month: number },
+  elapsedMonth: number,
+  random: () => number,
+) {
+  const slot = selectMonthlyEventSlot(monthlyEventDefinitions, {
+    month: calendar.month,
+    elapsedMonth,
+    stats: state.stats,
+    flags: state.flags,
+    completedEventIds: state.completedEventIds,
+    sideHustles: state.sideHustles,
+  }, elapsedMonth, random)
+  if (!slot.eventId) return
+  const event = monthlyEventMap.get(slot.eventId)
+  if (!event) return
+  const option = event.options.find((candidate) => candidate.tone === 'realistic') ?? event.options[0]
+  if (!option) return
+  state.stats = applyEffects(state.stats, option.effects)
+  state.flags = [...new Set([
+    ...state.flags.filter((flag) => !(option.removeFlags ?? []).includes(flag)),
+    ...(option.addFlags ?? []),
+  ])]
+  state.completedEventIds.push(event.id)
+  state.eventCategoryCounts[event.category] = (state.eventCategoryCounts[event.category] ?? 0) + 1
+
+  if (!event.miniGame) return
+  const config = miniGameConfigs.get(event.miniGame.configId)
+  if (!config) return
+  const capability = state.stats.workplace + state.stats.boundary
+    + state.stats.japanese * 0.25 - state.stats.stress * 0.35
+  const answers = Object.fromEntries(config.stages.map((stage) => {
+    if (capability >= 75) return [stage.id, stage.options[0]?.id ?? MINI_GAME_TIMEOUT_ANSWER]
+    if (capability >= 45) return [stage.id, stage.options[1]?.id ?? MINI_GAME_TIMEOUT_ANSWER]
+    return [stage.id, MINI_GAME_TIMEOUT_ANSWER]
+  }))
+  const result = resolveReadTheAirResult(config, answers)
+  state.stats = applyEffects(state.stats, result.effects)
+  state.flags = [...new Set([...state.flags, ...(result.flags ?? [])])]
+}
+
 function chooseExtraPayment(stats: GameStats, plan: MonthlyPlan, strategyId: BalanceStrategyId) {
   if (strategyId === 'reference_no_extra') return 0
   const maximum = getMaximumExtraPaymentRmb(stats, plan)
@@ -209,6 +264,9 @@ export function simulateBalanceRun(
     actionPointsSpent: 0,
     latestSettlement: null,
     negativeActionPointMonths: 0,
+    flags: [],
+    completedEventIds: [],
+    eventCategoryCounts: {},
   }
   const operationalMonths = Math.max(1, horizonMonths - 1)
 
@@ -229,6 +287,7 @@ export function simulateBalanceRun(
       random,
       openingRecovery.actionPointModifier,
     )
+    applySimulatedMonthlyEvent(state, calendar, elapsedMonth, random)
 
     while (strategyId === 'high_overwork'
       ? plan.actionPointsRemaining > -2
@@ -290,6 +349,9 @@ export function simulateBalanceRun(
     stress: state.stats.stress,
     recoveryDebt: state.stats.recoveryDebt,
     negativeActionPointMonths: state.negativeActionPointMonths,
+    eventsTriggered: state.completedEventIds.length,
+    sideHustleFeedbackEvents: state.eventCategoryCounts.sidejob ?? 0,
+    eventCategoryCounts: { ...state.eventCategoryCounts },
     routeLevels: Object.fromEntries(
       Object.entries(state.sideHustles.routes).map(([routeId, route]) => [routeId, route.level]),
     ) as Record<SideHustleRouteId, number>,
@@ -329,6 +391,8 @@ export function summarizeBalanceRuns(runs: readonly BalanceRunResult[]): Balance
     stress: summarize(runs.map((run) => run.stress)),
     recoveryDebt: summarize(runs.map((run) => run.recoveryDebt)),
     negativeActionPointMonths: summarize(runs.map((run) => run.negativeActionPointMonths)),
+    eventsTriggered: summarize(runs.map((run) => run.eventsTriggered)),
+    sideHustleFeedbackEvents: summarize(runs.map((run) => run.sideHustleFeedbackEvents)),
     medianRouteLevels: Object.fromEntries(routeIds.map((routeId) => [
       routeId,
       percentile(runs.map((run) => run.routeLevels[routeId]), 0.5),

@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { initialGameStats } from '../data/initialState'
+import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
 import type { EventContext, GameEvent, MonthlyEventDefinition } from '../types/game'
 import { completeMonthlyEventSlot, completeMonthlyMiniGameSlot, selectMonthlyEventSlot } from './monthlyEventSlot'
 
 const context: EventContext = {
   month: 9,
+  elapsedMonth: 2,
   stats: initialGameStats,
   flags: [],
   completedEventIds: [],
+  sideHustles: createInitialSideHustleState(),
 }
 
 function event(id: string, weight = 1): GameEvent {

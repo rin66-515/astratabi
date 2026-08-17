@@ -326,10 +326,45 @@
 .endingDebugPage > div button span { color: var(--game-muted); font: 9px 'DM Mono', monospace; }
 .endingDebugPage > div button strong { font-weight: 500; }
 
+.miniGamePage {
+  display: grid;
+  min-height: calc(100dvh - 58px);
+  place-items: center;
+  padding: 62px clamp(20px, 7vw, 84px);
+  color: #e8e4da;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(82, 113, 142, .18), transparent 34rem),
+    #0d141e;
+}
+.miniGamePanel, .miniGameResult { width: min(100%, 760px); }
+.miniGameHeader { display: flex; align-items: start; justify-content: space-between; margin-bottom: 32px; }
+.miniGameHeader .kicker { margin-bottom: 8px; color: #9bb4cb; }
+.miniGameHeader strong { color: rgba(232, 228, 218, .5); font: 10px 'DM Mono', monospace; letter-spacing: .14em; }
+.miniGameHeader output { color: #d8d2c4; font: 500 clamp(42px, 8vw, 72px) 'DM Mono', monospace; line-height: 1; letter-spacing: -.05em; transition: color .2s ease, transform .2s ease; }
+.miniGameHeader output.timerUrgent { color: #c36152; transform: scale(1.04); }
+.miniGameHistory { margin-bottom: 24px; padding: 13px 17px; border-left: 1px solid rgba(139, 173, 203, .45); color: rgba(218, 221, 219, .52); font-size: 11px; line-height: 1.7; }
+.miniGameHistory p { margin: 0 0 8px; }
+.miniGameHistory p:last-child { margin-bottom: 0; }
+.miniGameDialogue { min-height: 250px; padding: clamp(28px, 6vw, 54px); border: 1px solid rgba(178, 190, 201, .14); background: rgba(20, 30, 43, .76); box-shadow: 0 32px 80px rgba(0, 0, 0, .24); }
+.miniGameDialogue span { display: block; margin-bottom: 28px; color: #9bb4cb; font-size: 11px; letter-spacing: .16em; }
+.miniGameDialogue p { margin: 0 0 17px; font-size: clamp(15px, 2.2vw, 18px); line-height: 1.9; }
+.miniGameDialogue p:last-child { margin-bottom: 0; }
+.miniGameOptions { display: grid; gap: 9px; margin-top: 19px; }
+.miniGameOptions button { padding: 16px 18px; border: 1px solid rgba(175, 188, 198, .18); color: #e4e1d8; background: rgba(26, 38, 52, .72); text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.miniGameOptions button:hover { transform: translateX(3px); border-color: rgba(155, 180, 203, .58); background: rgba(34, 49, 66, .88); }
+.miniGameOptions button.fantasyOption { border-style: dashed; color: #c9bed8; }
+.miniGameOptions button:focus-visible { outline: 2px solid var(--game-moon); outline-offset: 3px; }
+.miniGameResult { display: grid; justify-items: center; text-align: center; }
+.miniGameResult .kicker { color: #9bb4cb; }
+.miniGameResult h1 { margin: 15px 0 22px; font: 500 clamp(34px, 7vw, 62px) 'Shippori Mincho', serif; letter-spacing: .08em; }
+.miniGameResult > p:not(.kicker) { max-width: 580px; margin-bottom: 28px; color: rgba(232, 228, 218, .76); line-height: 2; }
+.miniGameResult .effectList { width: min(100%, 520px); margin-bottom: 32px; color: var(--game-ink); background: rgba(244, 240, 230, .96); }
+.gradeStamp { display: grid; width: 104px; height: 104px; place-items: center; border: 2px solid #a64e43; border-radius: 50%; color: #b65b4e; font: 500 54px 'DM Mono', monospace; transform: rotate(-7deg); box-shadow: inset 0 0 0 5px #0d141e, inset 0 0 0 7px rgba(166, 78, 67, .7); }
+
 @media (max-width: 780px) {
   .portalBar { min-height: 52px; padding-inline: 18px; }
   .pageFrame { min-height: calc(100dvh - 52px); }
-  .coverPage, .monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage, .debtFreeScene { min-height: calc(100dvh - 52px); }
+  .coverPage, .monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage, .debtFreeScene, .miniGamePage { min-height: calc(100dvh - 52px); }
   .coverPage { padding: 64px 22px 82px; }
   .tokyoGlow { right: -10%; width: 78vw; opacity: .38; }
   .coverCopy h1 { font-size: clamp(48px, 17vw, 76px); }
@@ -366,6 +401,9 @@
   .reportChoices li { grid-template-columns: 1fr; gap: 5px; }
   .debtFreeScene { padding: 62px 26px; }
   .endingDebugPage > div { grid-template-columns: 1fr; }
+  .miniGamePage { padding: 38px 16px 56px; }
+  .miniGameDialogue { min-height: 230px; padding: 30px 24px; }
+  .miniGameOptions button { padding: 14px; font-size: 13px; }
 }
 
 @media (max-width: 420px) {
@@ -379,9 +417,10 @@
   .actionPointSeal { width: 100%; }
   .monthActionList { grid-template-columns: 1fr; }
   .sideHustleGrid { grid-template-columns: 1fr; }
+  .miniGameHeader output { font-size: 40px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .primaryButton, .quietButton, .optionList button { transition: none; }
-  .primaryButton:hover, .quietButton:hover, .optionList button:hover { transform: none; }
+  .primaryButton, .quietButton, .optionList button, .miniGameOptions button, .miniGameHeader output { transition: none; }
+  .primaryButton:hover, .quietButton:hover, .optionList button:hover, .miniGameOptions button:hover { transform: none; }
 }

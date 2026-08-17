@@ -58,8 +58,16 @@ export type EventCondition =
   | { type: 'flag'; flag: string; present?: boolean }
   | { type: 'completedEvent'; eventId: string; completed?: boolean }
   | { type: 'month'; operator: ComparisonOperator; value: number }
+  | { type: 'elapsedMonth'; operator: ComparisonOperator; value: number }
+  | {
+    type: 'sideHustle'
+    routeId: SideHustleRouteId
+    field: 'level' | 'completedActions' | 'totalIncomeJpy'
+    operator: ComparisonOperator
+    value: number
+  }
 
-export type EventCategory = 'main' | 'work' | 'health' | 'finance' | 'social' | 'life'
+export type EventCategory = 'main' | 'work' | 'health' | 'finance' | 'social' | 'life' | 'institution' | 'family' | 'sidejob'
 
 export type OptionTone = 'realistic' | 'jianghu' | 'absurd' | 'dao'
 
@@ -95,15 +103,27 @@ export type MiniGameResult = {
 
 export type MiniGameTimeout = {
   resultText: LocalizedText
-  effects: GameEffects
+  score?: number
+  effects?: GameEffects
   flags?: string[]
   completesMiniGame?: boolean
 }
 
+export type MiniGameStageOption = {
+  id: string
+  label: LocalizedText
+  response: LocalizedText
+  score: number
+  tone?: OptionTone
+}
+
 export type MiniGameStageConfig = {
   id: string
+  speaker: LocalizedText
+  prompt: LocalizedText[]
   timeLimitMs?: number
   timeout?: MiniGameTimeout
+  options: readonly MiniGameStageOption[]
 }
 
 export type MiniGameConfig = {
@@ -125,6 +145,7 @@ export type MiniGameSession = {
   answers: Record<string, string>
   stageStartedAt: string
   deadlineAt: string | null
+  result: MiniGameResult | null
 }
 
 export type ConditionalConsequence = {
@@ -188,9 +209,11 @@ export type MonthlyEventSlotState = {
 
 export type EventContext = {
   month: number
+  elapsedMonth: number
   stats: GameStats
   flags: string[]
   completedEventIds: string[]
+  sideHustles: SideHustleState
 }
 
 export type ChoiceHistoryEntry = {

@@ -14,6 +14,7 @@ import { GamePage } from './pages/GamePage'
 import { MonthIntroPage } from './pages/MonthIntroPage'
 import { MonthSettlementPage } from './pages/MonthSettlementPage'
 import { MonthSummaryPage } from './pages/MonthSummaryPage'
+import { MiniGamePage } from './pages/MiniGamePage'
 import { MonthlyCyclePage } from './pages/MonthlyCyclePage'
 import { PreviewPage } from './pages/PreviewPage'
 import { StageEndingPage } from './pages/StageEndingPage'
@@ -76,7 +77,8 @@ export function YunyueFusheng({ onExit }: { onExit: () => void }) {
           : <>
             {!opened && <CoverPage language={game.language} hasSave={Boolean(game.startedAt)} onNewGame={startGame} onContinue={() => setOpened(true)} />}
             {opened && game.screen === 'month-intro' && <MonthIntroPage language={game.language} stats={game.stats} onEnter={game.beginMonth} />}
-            {opened && game.screen === 'event' && currentEvent && <GamePage event={currentEvent} stats={game.stats} language={game.language} resolution={game.resolution} onChoose={game.chooseOption} onAdvance={game.advance} />}
+            {opened && game.screen === 'event' && currentEvent && <GamePage event={currentEvent} year={game.year} month={game.month} stats={game.stats} language={game.language} resolution={game.resolution} onChoose={game.chooseOption} onAdvance={game.advance} />}
+            {opened && game.screen === 'monthly-minigame' && game.activeMiniGame && <MiniGamePage language={game.language} session={game.activeMiniGame} onChoose={game.chooseMonthlyMiniGameOption} onTimeout={game.timeoutMonthlyMiniGame} onContinue={game.continueAfterMonthlyMiniGame} />}
             {opened && game.screen === 'month-summary' && <MonthSummaryPage language={game.language} stats={game.stats} history={game.history} onNext={game.showPreview} />}
             {opened && game.screen === 'preview' && <PreviewPage language={game.language} onEnterNextMonth={game.enterNextMonth} onExit={exitGame} />}
             {opened && game.screen === 'monthly-cycle' && game.monthlyPlan && <MonthlyCyclePage language={game.language} year={game.year} month={game.month} stats={game.stats} progress={game.progress} flags={game.flags} sideHustles={game.sideHustles} plan={game.monthlyPlan} onPerformAction={game.performMonthlyAction} onSetExtraPayment={game.setExtraPayment} onComplete={game.completeMonth} />}

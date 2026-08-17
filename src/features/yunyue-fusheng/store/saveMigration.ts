@@ -13,6 +13,8 @@ import type {
   GameStats,
   Language,
   MonthSettlement,
+  MiniGameResult,
+  MiniGameSession,
   MiniGameType,
   MonthlyEventKind,
   MonthlyEventSlotState,
@@ -103,6 +105,54 @@ function miniGameTypeOf(value: unknown): MiniGameType | null {
   return value === 'read_the_air' || value === 'incident_response' || value === 'design_review'
     ? value
     : null
+}
+
+function migrateMiniGameResult(value: unknown): MiniGameResult | null {
+  if (!isRecord(value) || !isRecord(value.effects)) return null
+  const grade = value.grade === 'S' || value.grade === 'A' || value.grade === 'B'
+    || value.grade === 'C' || value.grade === 'D'
+    ? value.grade
+    : undefined
+  const resultText = isRecord(value.resultText)
+    && typeof value.resultText.zh === 'string'
+    && typeof value.resultText.ja === 'string'
+    ? { zh: value.resultText.zh, ja: value.resultText.ja }
+    : undefined
+  return {
+    score: typeof value.score === 'number' && Number.isFinite(value.score) ? value.score : undefined,
+    grade,
+    effects: value.effects as GameEffects,
+    flags: stringArray(value.flags),
+    resultText,
+  }
+}
+
+function migrateMiniGameSession(value: unknown): MiniGameSession | null {
+  if (!isRecord(value)) return null
+  const type = miniGameTypeOf(value.type)
+  if (
+    !type
+    || typeof value.eventId !== 'string'
+    || typeof value.configId !== 'string'
+    || typeof value.stageIndex !== 'number'
+    || !isRecord(value.answers)
+  ) return null
+  const answers = Object.fromEntries(
+    Object.entries(value.answers).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
+  const stageStartedAt = typeof value.stageStartedAt === 'string'
+    ? value.stageStartedAt
+    : new Date().toISOString()
+  return {
+    eventId: value.eventId,
+    configId: value.configId,
+    type,
+    stageIndex: Math.max(0, Math.floor(value.stageIndex)),
+    answers,
+    stageStartedAt,
+    deadlineAt: typeof value.deadlineAt === 'string' ? value.deadlineAt : null,
+    result: migrateMiniGameResult(value.result),
+  }
 }
 
 function migrateMonthlyEventSlot(value: unknown): MonthlyEventSlotState | null {
@@ -258,9 +308,13 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
   const language = languageOf(persistedState.language)
   const fallback = createInitialGameSaveState(language)
   const stats = migrateStats(persistedState.stats)
+  const storedScreen = screenOf(persistedState.screen)
+  const activeMiniGame = migrateMiniGameSession(persistedState.activeMiniGame)
+  const migratedMonthlyEventSlot = migrateMonthlyEventSlot(persistedState.monthlyEventSlot)
+  const recoverLegacyMiniGame = storedScreen === 'monthly-minigame' && activeMiniGame === null
   return {
     language,
-    screen: screenOf(persistedState.screen),
+    screen: recoverLegacyMiniGame ? 'monthly-cycle' : storedScreen,
     month: finiteNumber(persistedState.month, fallback.month),
     year: finiteNumber(persistedState.year, fallback.year),
     stats,
@@ -271,8 +325,10 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
     resolution: isRecord(persistedState.resolution) ? persistedState.resolution as GameSaveState['resolution'] : null,
     startedAt: typeof persistedState.startedAt === 'string' ? persistedState.startedAt : null,
     progress: migrateProgress(persistedState.progress),
-    activeMiniGame: null,
-    monthlyEventSlot: migrateMonthlyEventSlot(persistedState.monthlyEventSlot),
+    activeMiniGame,
+    monthlyEventSlot: recoverLegacyMiniGame && migratedMonthlyEventSlot
+      ? { ...migratedMonthlyEventSlot, status: 'completed' }
+      : migratedMonthlyEventSlot,
     sideHustles: migrateSideHustles(persistedState.sideHustles),
     monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan, stats.cashJpy),
     monthlySettlements: Array.isArray(persistedState.monthlySettlements)
