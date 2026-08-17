@@ -37,4 +37,20 @@ describe('createMonthlyPlan', () => {
     expect(monthlyPlan.extraPaymentRmb).toBe(0)
     expect(monthlyPlan.actionPointsRemaining).toBe(monthlyPlan.actionPointsGranted)
   })
+
+  it('applies pressure modifiers while keeping at least two AP', () => {
+    const reduced = createMonthlyPlan(initialGameStats, {
+      elapsedMonth: 3,
+      year: 2024,
+      month: 10,
+    }, () => 0, -5)
+    const rested = createMonthlyPlan(initialGameStats, {
+      elapsedMonth: 3,
+      year: 2024,
+      month: 10,
+    }, () => 0.5, 1)
+
+    expect(reduced.actionPointsGranted).toBe(2)
+    expect(rested.actionPointsGranted).toBe(8)
+  })
 })

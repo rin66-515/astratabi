@@ -60,4 +60,24 @@ describe('monthly event slot', () => {
     expect(() => selectMonthlyEventSlot([{ kind: 'minigame', event: event('broken') }], context, 4))
       .toThrow('requires a miniGame trigger')
   })
+
+  it('raises future event weight when a state condition is met', () => {
+    const definitions: MonthlyEventDefinition[] = [
+      { kind: 'normal', event: event('neutral') },
+      {
+        kind: 'normal',
+        event: event('pressure'),
+        weightRules: [{
+          conditions: [{ type: 'stat', stat: 'stress', operator: 'gte', value: 70 }],
+          multiplier: 4,
+        }],
+      },
+    ]
+
+    expect(selectMonthlyEventSlot(definitions, context, 4, () => 0.3).eventId).toBe('neutral')
+    expect(selectMonthlyEventSlot(definitions, {
+      ...context,
+      stats: { ...context.stats, stress: 80 },
+    }, 4, () => 0.3).eventId).toBe('pressure')
+  })
 })

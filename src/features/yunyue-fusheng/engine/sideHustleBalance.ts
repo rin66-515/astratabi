@@ -2,6 +2,7 @@ import { createInitialSideHustleState, initialGameStats } from '../data/initialS
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
 import type {
   GameStats,
+  MonthSettlement,
   MonthlyActionDefinition,
   MonthlyActionSelection,
   MonthlyPlan,
@@ -11,6 +12,7 @@ import type {
 import { applyEffects } from './applyEffects'
 import { createMonthlyPlan } from './monthPlanning'
 import { getMaximumExtraPaymentRmb, settleMonth } from './monthSettlement'
+import { applyMonthOpeningRecovery, canPerformMonthlyAction } from './recoveryResolver'
 import {
   applySideHustleOutcome,
   sideHustleMonthlyActionProvider,
@@ -39,6 +41,7 @@ export type BalanceRunResult = {
   mental: number
   stress: number
   recoveryDebt: number
+  negativeActionPointMonths: number
   routeLevels: Record<SideHustleRouteId, number>
 }
 
@@ -62,6 +65,7 @@ export type BalanceScenarioSummary = {
   mental: PercentileSummary
   stress: PercentileSummary
   recoveryDebt: PercentileSummary
+  negativeActionPointMonths: PercentileSummary
   medianRouteLevels: Record<SideHustleRouteId, number>
 }
 
@@ -70,6 +74,8 @@ type SimulationState = {
   sideHustles: SideHustleState
   debtClearedMonth: number | null
   actionPointsSpent: number
+  latestSettlement: MonthSettlement | null
+  negativeActionPointMonths: number
 }
 
 const BALANCE_HORIZONS = [12, 18, 24] as const
@@ -201,29 +207,56 @@ export function simulateBalanceRun(
     sideHustles: createInitialSideHustleState(),
     debtClearedMonth: null,
     actionPointsSpent: 0,
+    latestSettlement: null,
+    negativeActionPointMonths: 0,
   }
   const operationalMonths = Math.max(1, horizonMonths - 1)
 
   // Month 1 is the playable prologue. The recurring planning/settlement loop begins in month 2.
   for (let elapsedMonth = 2; elapsedMonth <= horizonMonths; elapsedMonth += 1) {
     const calendar = calendarAt(elapsedMonth)
+    const openingRecovery = applyMonthOpeningRecovery(state.stats, state.latestSettlement)
+    state.stats = openingRecovery.stats
     state.sideHustles = unlockEligibleSideHustles(state.sideHustles, {
       elapsedMonth,
       stats: state.stats,
       flags: [],
       sideHustles: state.sideHustles,
     })
-    const plan = createMonthlyPlan(state.stats, { elapsedMonth, ...calendar }, random)
+    const plan = createMonthlyPlan(
+      state.stats,
+      { elapsedMonth, ...calendar },
+      random,
+      openingRecovery.actionPointModifier,
+    )
 
-    while (plan.actionPointsRemaining > 0) {
+    while (strategyId === 'high_overwork'
+      ? plan.actionPointsRemaining > -2
+      : plan.actionPointsRemaining > 0) {
       const actions = getAvailableMonthlyActions({
         elapsedMonth,
         stats: state.stats,
         flags: [],
         sideHustles: state.sideHustles,
       }, [sideHustleMonthlyActionProvider])
-      const action = chooseAction(strategyId, elapsedMonth, actions, state.sideHustles, state.stats)
-      if (!action || action.actionPointCost > plan.actionPointsRemaining) break
+      let action = chooseAction(strategyId, elapsedMonth, actions, state.sideHustles, state.stats)
+      if (
+        strategyId === 'high_overwork'
+        && (!action || !canPerformMonthlyAction(action.actionPointCost, plan.actionPointsRemaining))
+      ) {
+        action = actions
+          .filter((candidate) => canPerformMonthlyAction(candidate.actionPointCost, plan.actionPointsRemaining))
+          .sort((left, right) => (
+            ((right.effects.stress ?? 0) + (right.sideHustle ? 1 : 0)
+              - (right.id === 'rest' || right.id === 'take_a_walk' ? 100 : 0)) / right.actionPointCost
+            - ((left.effects.stress ?? 0) + (left.sideHustle ? 1 : 0)
+              - (left.id === 'rest' || left.id === 'take_a_walk' ? 100 : 0)) / left.actionPointCost
+          ))[0]
+      }
+      const canApply = action && (strategyId === 'high_overwork'
+        ? canPerformMonthlyAction(action.actionPointCost, plan.actionPointsRemaining)
+        : action.actionPointCost <= plan.actionPointsRemaining)
+      if (!action || !canApply) break
       applyAction(state, plan, action, elapsedMonth)
       state.sideHustles = unlockEligibleSideHustles(state.sideHustles, {
         elapsedMonth,
@@ -236,7 +269,9 @@ export function simulateBalanceRun(
     plan.extraPaymentRmb = chooseExtraPayment(state.stats, plan, strategyId)
     const result = settleMonth(state.stats, { elapsedMonth, ...calendar }, plan)
     state.stats = result.stats
+    state.latestSettlement = result.settlement
     state.actionPointsSpent += result.settlement.actionPointsSpent
+    if (result.settlement.negativeActionPointMonth) state.negativeActionPointMonths += 1
     if (state.debtClearedMonth === null && state.stats.debtRmb <= 0) {
       state.debtClearedMonth = elapsedMonth
     }
@@ -254,6 +289,7 @@ export function simulateBalanceRun(
     mental: state.stats.mental,
     stress: state.stats.stress,
     recoveryDebt: state.stats.recoveryDebt,
+    negativeActionPointMonths: state.negativeActionPointMonths,
     routeLevels: Object.fromEntries(
       Object.entries(state.sideHustles.routes).map(([routeId, route]) => [routeId, route.level]),
     ) as Record<SideHustleRouteId, number>,
@@ -292,6 +328,7 @@ export function summarizeBalanceRuns(runs: readonly BalanceRunResult[]): Balance
     mental: summarize(runs.map((run) => run.mental)),
     stress: summarize(runs.map((run) => run.stress)),
     recoveryDebt: summarize(runs.map((run) => run.recoveryDebt)),
+    negativeActionPointMonths: summarize(runs.map((run) => run.negativeActionPointMonths)),
     medianRouteLevels: Object.fromEntries(routeIds.map((routeId) => [
       routeId,
       percentile(runs.map((run) => run.routeLevels[routeId]), 0.5),

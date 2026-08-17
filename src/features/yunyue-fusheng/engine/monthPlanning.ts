@@ -24,10 +24,12 @@ export function createMonthlyPlan(
   stats: GameStats,
   context: MonthPlanContext,
   random: () => number = Math.random,
+  actionPointModifier = 0,
 ): MonthlyPlan {
   const actionPointRange = MAX_MONTHLY_ACTION_POINTS - MIN_MONTHLY_ACTION_POINTS + 1
-  const actionPointsGranted = MIN_MONTHLY_ACTION_POINTS
+  const baseActionPoints = MIN_MONTHLY_ACTION_POINTS
     + Math.floor(boundedRandom(random) * actionPointRange)
+  const actionPointsGranted = clamp(baseActionPoints + actionPointModifier, 2, MAX_MONTHLY_ACTION_POINTS)
   const rateDelta = (boundedRandom(random) * 2 - 1) * EXCHANGE_RATE_SWING
   const exchangeRate = Number(clamp(
     stats.exchangeRate * (1 + rateDelta),

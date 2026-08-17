@@ -52,6 +52,13 @@ export function MonthSettlementPage({ language, settlement, onContinue }: {
       <p>{language === 'zh'
         ? `使用 ${settlement.actionPointsSpent} / ${settlement.actionPointsGranted} AP`
         : `${settlement.actionPointsSpent} / ${settlement.actionPointsGranted} AP 使用`}</p>
+      {settlement.negativeActionPointMonth
+        ? <p>{language === 'zh'
+          ? `本月透支 ${settlement.actionPointsOverdrawn} AP。压力与恢复债已在本次月结中落账。`
+          : `今月は ${settlement.actionPointsOverdrawn} AP を前借りした。ストレスと回復負債は今回の精算に反映済み。`}</p>
+        : <p>{language === 'zh'
+          ? `行动强度 ${Math.round(settlement.actionIntensity * 100)}%。未透支的余量会影响下月恢复。`
+          : `行動強度 ${Math.round(settlement.actionIntensity * 100)}%。余力は翌月の回復に影響する。`}</p>}
       {settlement.actions.length > 0
         ? <ul>{settlement.actions.map((action, index) => <li key={`${action.actionId}-${index}`}>{action.label[language]}</li>)}</ul>
         : <small>{language === 'zh' ? '这个月没有安排额外行动。' : '今月は自由行動を選ばなかった。'}</small>}

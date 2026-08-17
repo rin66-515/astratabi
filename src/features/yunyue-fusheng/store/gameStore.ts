@@ -18,6 +18,7 @@ import {
   selectMonthlyEventSlot,
 } from '../engine/monthlyEventSlot'
 import { applyMiniGameResult } from '../engine/minigameResolver'
+import { applyMonthOpeningRecovery, canPerformMonthlyAction } from '../engine/recoveryResolver'
 import {
   applySideHustleOutcome,
   sideHustleMonthlyActionProvider,
@@ -90,19 +91,21 @@ function followingCalendarMonth(year: number, month: number) {
 function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
   const calendar = followingCalendarMonth(state.year, state.month)
   const elapsedMonths = state.progress.elapsedMonths + 1
+  const previousSettlement = state.monthlySettlements.at(-1) ?? null
+  const openingRecovery = applyMonthOpeningRecovery(state.stats, previousSettlement)
   const sideHustles = unlockEligibleSideHustles(state.sideHustles, {
     elapsedMonth: elapsedMonths,
-    stats: state.stats,
+    stats: openingRecovery.stats,
     flags: state.flags,
     sideHustles: state.sideHustles,
   })
-  const monthlyPlan = createMonthlyPlan(state.stats, {
+  const monthlyPlan = createMonthlyPlan(openingRecovery.stats, {
     ...calendar,
     elapsedMonth: elapsedMonths,
-  })
+  }, Math.random, openingRecovery.actionPointModifier)
   const monthlyEventSlot = selectMonthlyEventSlot(monthlyEventDefinitions, {
     month: calendar.month,
-    stats: state.stats,
+    stats: openingRecovery.stats,
     flags: state.flags,
     completedEventIds: state.completedEventIds,
   }, elapsedMonths)
@@ -113,7 +116,7 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
     resolution: null,
     activeMiniGame: null,
     monthlyEventSlot,
-    stats: { ...state.stats, actionPoints: monthlyPlan.actionPointsGranted },
+    stats: { ...openingRecovery.stats, actionPoints: monthlyPlan.actionPointsGranted },
     sideHustles,
     monthlyPlan,
     progress: {
@@ -334,7 +337,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
       flags: state.flags,
       sideHustles: unlockedSideHustles,
     }, [sideHustleMonthlyActionProvider]).find((candidate) => candidate.id === actionId)
-    if (!action || action.actionPointCost > state.monthlyPlan.actionPointsRemaining) return
+    if (!action || !canPerformMonthlyAction(action.actionPointCost, state.monthlyPlan.actionPointsRemaining)) return
 
     const actionPointsRemaining = state.monthlyPlan.actionPointsRemaining - action.actionPointCost
     const nextStats = applyEffects(state.stats, action.effects)
@@ -510,7 +513,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   },
 }), {
   name: SAVE_KEY,
-  version: 6,
+  version: 7,
   storage: createJSONStorage(() => window.localStorage),
   migrate: migrateGameSave,
   partialize: (state): GameSaveState => ({

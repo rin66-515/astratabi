@@ -3,7 +3,8 @@ import type {
   MonthlyEventDefinition,
   MonthlyEventSlotState,
 } from '../types/game'
-import { getAvailableEvents, pickWeightedEvent } from './eventSelection'
+import { checkConditions } from './checkCondition'
+import { getAvailableEvents } from './eventSelection'
 
 function emptySlot(elapsedMonth: number): MonthlyEventSlotState {
   return {
@@ -26,11 +27,32 @@ export function selectMonthlyEventSlot(
     definitions.map((definition) => definition.event),
     context,
   )
-  const majorEvents = availableEvents.filter((event) => definitionById.get(event.id)?.kind === 'major')
-  const selectedEvent = pickWeightedEvent(majorEvents.length > 0 ? majorEvents : availableEvents, random)
+  const availableDefinitions = availableEvents
+    .map((event) => definitionById.get(event.id))
+    .filter((definition): definition is MonthlyEventDefinition => Boolean(definition))
+  const majorDefinitions = availableDefinitions.filter((definition) => definition.kind === 'major')
+  const selectionPool = majorDefinitions.length > 0 ? majorDefinitions : availableDefinitions
+  const weightedDefinitions = selectionPool.map((definition) => {
+    const dynamicMultiplier = (definition.weightRules ?? []).reduce((multiplier, rule) => (
+      checkConditions(rule.conditions, context) ? multiplier * Math.max(0, rule.multiplier) : multiplier
+    ), 1)
+    return {
+      definition,
+      weight: Math.max(0, definition.event.weight ?? 1) * dynamicMultiplier,
+    }
+  })
+  const totalWeight = weightedDefinitions.reduce((total, candidate) => total + candidate.weight, 0)
+  let cursor = random() * totalWeight
+  const selectedDefinition = totalWeight <= 0
+    ? weightedDefinitions[0]?.definition
+    : weightedDefinitions.find((candidate) => {
+      cursor -= candidate.weight
+      return cursor < 0
+    })?.definition ?? weightedDefinitions.at(-1)?.definition
+  const selectedEvent = selectedDefinition?.event ?? null
   if (!selectedEvent) return emptySlot(elapsedMonth)
 
-  const definition = definitionById.get(selectedEvent.id)
+  const definition = selectedDefinition
   if (!definition) return emptySlot(elapsedMonth)
   if (definition.kind === 'minigame' && !selectedEvent.miniGame) {
     throw new Error(`Monthly minigame event ${selectedEvent.id} requires a miniGame trigger`)

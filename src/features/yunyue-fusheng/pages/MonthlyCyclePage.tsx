@@ -11,6 +11,7 @@ import {
   sideHustleRouteConfigs,
   sideHustleRouteIds,
 } from '../engine/sideHustleResolver'
+import { canPerformMonthlyAction, MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
 import type { GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
 import { formatMoney, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
@@ -102,12 +103,14 @@ export function MonthlyCyclePage({
           {coreActions.map((action) => <button
             type="button"
             key={action.id}
-            disabled={action.actionPointCost > plan.actionPointsRemaining}
+            disabled={!canPerformMonthlyAction(action.actionPointCost, plan.actionPointsRemaining)}
             onClick={() => onPerformAction(action.id)}
           >
             <span>{action.label[language]}</span>
             <small>{action.description[language]}</small>
-            <b>−{action.actionPointCost} AP</b>
+            <b>{action.actionPointCost > plan.actionPointsRemaining
+              ? `${language === 'zh' ? '透支' : '前借り'} −${action.actionPointCost} AP`
+              : `−${action.actionPointCost} AP`}</b>
           </button>)}
         </div>
         {plan.selectedActions.length > 0 && <ol className={styles.selectedActionList}>
@@ -183,7 +186,7 @@ export function MonthlyCyclePage({
                 <div className={styles.sideHustleProgress}><i style={{ width: `${Math.min(100, route.experience / experienceRequired * 100)}%` }} /><span>{route.experience} / {experienceRequired} XP</span></div>
                 {action && <button
                   type="button"
-                  disabled={action.actionPointCost > plan.actionPointsRemaining}
+                  disabled={!canPerformMonthlyAction(action.actionPointCost, plan.actionPointsRemaining)}
                   onClick={() => onPerformAction(action.id)}
                 >
                   <span>{action.label[language]}</span>
@@ -198,8 +201,8 @@ export function MonthlyCyclePage({
 
     <div className={styles.monthClosingBar}>
       <small>{language === 'zh'
-        ? `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}% · 本月汇率已固定，刷新不会重抽`
-        : `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}%・今月の為替は確定済み`}</small>
+        ? `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}% · AP最多透支至 ${MONTHLY_AP_OVERDRAFT_LIMIT} · 本月汇率已固定`
+        : `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}%・AP前借りは ${MONTHLY_AP_OVERDRAFT_LIMIT} まで・今月の為替は確定済み`}</small>
       <button className={styles.primaryButton} type="button" onClick={onComplete}>{language === 'zh' ? '确认并进行月结' : '確認して月次精算へ'}</button>
     </div>
   </section>

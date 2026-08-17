@@ -167,4 +167,80 @@ describe('playable ending flow', () => {
     useGameStore.getState().prepareMonth()
     expect(useGameStore.getState().monthlyEventSlot).toEqual(selectedSlot)
   })
+
+  it('allows deliberate overdraft to -2 AP and records one negative AP month', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'monthly-cycle',
+      monthlyPlan: {
+        elapsedMonth: 2,
+        year: 2024,
+        month: 9,
+        openingCashJpy: state.stats.cashJpy,
+        actionPointsGranted: 5,
+        actionPointsRemaining: 0,
+        exchangeRate: state.stats.exchangeRate,
+        selectedActions: [],
+        extraPaymentRmb: 0,
+      },
+    })
+
+    useGameStore.getState().performMonthlyAction('rest')
+    useGameStore.getState().performMonthlyAction('rest')
+    useGameStore.getState().performMonthlyAction('rest')
+    expect(useGameStore.getState().monthlyPlan?.actionPointsRemaining).toBe(-2)
+
+    useGameStore.getState().completeMonth()
+    expect(useGameStore.getState().monthlySettlements.at(-1)).toMatchObject({
+      actionPointsOverdrawn: 2,
+      negativeActionPointMonth: true,
+    })
+  })
+
+  it('applies rest and low-intensity value again at the following month opening', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'monthly-cycle',
+      monthlyPlan: {
+        elapsedMonth: 2,
+        year: 2024,
+        month: 9,
+        openingCashJpy: state.stats.cashJpy,
+        actionPointsGranted: 6,
+        actionPointsRemaining: 6,
+        exchangeRate: state.stats.exchangeRate,
+        selectedActions: [],
+        extraPaymentRmb: 0,
+      },
+      progress: { ...state.progress, elapsedMonths: 2 },
+    })
+    useGameStore.getState().performMonthlyAction('rest')
+    useGameStore.getState().performMonthlyAction('rest')
+    useGameStore.getState().completeMonth()
+    const stressAfterSettlement = useGameStore.getState().stats.stress
+    const recoveryDebtAfterSettlement = useGameStore.getState().stats.recoveryDebt
+
+    useGameStore.getState().continueAfterMonthSettlement()
+    expect(useGameStore.getState().stats.stress).toBeLessThan(stressAfterSettlement)
+    expect(useGameStore.getState().stats.recoveryDebt).toBeLessThan(recoveryDebtAfterSettlement)
+  })
+
+  it('reduces the next monthly AP roll under severe accumulated pressure', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.999999)
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'preview',
+      stats: {
+        ...state.stats,
+        stress: 90,
+        recoveryDebt: 75,
+        health: 20,
+        mental: 20,
+      },
+    })
+
+    useGameStore.getState().enterNextMonth()
+    expect(useGameStore.getState().monthlyPlan?.actionPointsGranted).toBe(2)
+    random.mockRestore()
+  })
 })

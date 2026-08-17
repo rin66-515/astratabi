@@ -95,4 +95,38 @@ describe('migrateGameSave', () => {
     expect(migrated.monthlyEventSlot?.status).toBe('mini_game_pending')
     expect(migrated.monthlyEventSlot?.miniGame?.configId).toBe('read-air-v1')
   })
+
+  it('preserves a v7 negative AP plan and supplies consequence defaults to older settlements', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      monthlyPlan: {
+        elapsedMonth: 4,
+        year: 2024,
+        month: 11,
+        openingCashJpy: 100_000,
+        actionPointsGranted: 6,
+        actionPointsRemaining: -2,
+        exchangeRate: 0.048,
+        selectedActions: [],
+        extraPaymentRmb: 0,
+      },
+      monthlySettlements: [{
+        elapsedMonth: 3,
+        year: 2024,
+        month: 10,
+        actionPointsGranted: 6,
+        actionPointsSpent: 3,
+        actions: [],
+      }],
+    }, 7)
+
+    expect(migrated.monthlyPlan?.actionPointsRemaining).toBe(-2)
+    expect(migrated.monthlySettlements[0]).toMatchObject({
+      actionIntensity: 0.5,
+      actionPointsOverdrawn: 0,
+      negativeActionPointMonth: false,
+      consequenceEffects: {},
+    })
+  })
 })

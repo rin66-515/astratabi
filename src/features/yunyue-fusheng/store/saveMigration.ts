@@ -5,6 +5,7 @@ import {
   initialVolumeProgress,
 } from '../data/initialState'
 import { sideHustleRouteIds } from '../engine/sideHustleResolver'
+import { MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
 import type {
   GameEffects,
   GameSaveState,
@@ -199,7 +200,10 @@ function migrateMonthlyPlan(value: unknown, fallbackCashJpy: number): MonthlyPla
     month: finiteNumber(value.month, 8),
     openingCashJpy: Math.max(0, finiteNumber(value.openingCashJpy, fallbackCashJpy)),
     actionPointsGranted: granted,
-    actionPointsRemaining: Math.min(granted, Math.max(0, finiteNumber(value.actionPointsRemaining, granted))),
+    actionPointsRemaining: Math.min(
+      granted,
+      Math.max(MONTHLY_AP_OVERDRAFT_LIMIT, finiteNumber(value.actionPointsRemaining, granted)),
+    ),
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
     selectedActions,
     extraPaymentRmb: Math.max(0, finiteNumber(value.extraPaymentRmb, 0)),
@@ -212,14 +216,23 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
     ? value.actions.map(migrateActionSelection).filter((action): action is MonthlyActionSelection => action !== null)
     : []
   const paymentRmb = Math.max(0, finiteNumber(value.paymentRmb, 0))
+  const actionPointsGranted = Math.max(0, finiteNumber(value.actionPointsGranted, 0))
+  const actionPointsSpent = Math.max(0, finiteNumber(value.actionPointsSpent, 0))
   return {
     elapsedMonth: Math.max(1, finiteNumber(value.elapsedMonth, 1)),
     year: finiteNumber(value.year, 2024),
     month: finiteNumber(value.month, 8),
     cashJpyBefore: Math.max(0, finiteNumber(value.cashJpyBefore, 0)),
     debtRmbBefore: Math.max(0, finiteNumber(value.debtRmbBefore, 0)),
-    actionPointsGranted: Math.max(0, finiteNumber(value.actionPointsGranted, 0)),
-    actionPointsSpent: Math.max(0, finiteNumber(value.actionPointsSpent, 0)),
+    actionPointsGranted,
+    actionPointsSpent,
+    actionPointsOverdrawn: Math.max(0, finiteNumber(value.actionPointsOverdrawn, 0)),
+    actionIntensity: Math.max(
+      0,
+      finiteNumber(value.actionIntensity, actionPointsGranted > 0 ? actionPointsSpent / actionPointsGranted : 0),
+    ),
+    negativeActionPointMonth: value.negativeActionPointMonth === true,
+    consequenceEffects: isRecord(value.consequenceEffects) ? value.consequenceEffects as GameEffects : {},
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
     salaryJpy: Math.max(0, finiteNumber(value.salaryJpy, 0)),
     sideHustleIncomeJpy: Math.max(0, finiteNumber(value.sideHustleIncomeJpy, 0)),

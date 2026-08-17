@@ -37,6 +37,22 @@ describe('settleMonth', () => {
     expect(result.settlement.extraPaymentRmb).toBe(0)
     expect(result.stats.debtRmb).toBe(95_600)
     expect(result.stats.cashJpy).toBe(260_833)
+    expect(result.settlement.actionIntensity).toBe(0)
+    expect(result.settlement.consequenceEffects).toMatchObject({ stress: -3, recoveryDebt: -1 })
+  })
+
+  it('records negative AP and applies its delayed health cost during settlement', () => {
+    const result = settleMonth(
+      initialGameStats,
+      { elapsedMonth: 2, year: 2024, month: 9 },
+      plan({ actionPointsRemaining: -2 }),
+    )
+
+    expect(result.settlement.actionPointsSpent).toBe(9)
+    expect(result.settlement.actionPointsOverdrawn).toBe(2)
+    expect(result.settlement.negativeActionPointMonth).toBe(true)
+    expect(result.stats.health).toBe(initialGameStats.health - 2)
+    expect(result.stats.recoveryDebt).toBe(initialGameStats.recoveryDebt + 9)
   })
 
   it('clears the remaining balance without overpaying', () => {

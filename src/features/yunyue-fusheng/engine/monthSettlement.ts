@@ -4,6 +4,8 @@ import type {
   MonthSettlement,
   MonthlyPlan,
 } from '../types/game'
+import { applyEffects } from './applyEffects'
+import { resolveMonthlyConsequence } from './recoveryResolver'
 
 export const EXTRA_PAYMENT_CASH_RESERVE_JPY = 50_000
 
@@ -95,15 +97,20 @@ export function settleMonth(
     (total, action) => total + (action.sideHustle?.incomeJpy ?? 0),
     0,
   )
+  const consequence = resolveMonthlyConsequence(
+    plan.actionPointsGranted,
+    plan.actionPointsRemaining,
+  )
+  const settledStats = applyEffects({
+    ...stats,
+    cashJpy: cashJpyAfter,
+    debtRmb: debtRmbAfter,
+    exchangeRate: plan.exchangeRate,
+    actionPoints: plan.actionPointsRemaining,
+  }, consequence.effects)
 
   return {
-    stats: {
-      ...stats,
-      cashJpy: cashJpyAfter,
-      debtRmb: debtRmbAfter,
-      exchangeRate: plan.exchangeRate,
-      actionPoints: plan.actionPointsRemaining,
-    },
+    stats: settledStats,
     settlement: {
       elapsedMonth: context.elapsedMonth,
       year: context.year,
@@ -111,7 +118,11 @@ export function settleMonth(
       cashJpyBefore: plan.openingCashJpy,
       debtRmbBefore: stats.debtRmb,
       actionPointsGranted: plan.actionPointsGranted,
-      actionPointsSpent: plan.actionPointsGranted - plan.actionPointsRemaining,
+      actionPointsSpent: consequence.actionPointsSpent,
+      actionPointsOverdrawn: consequence.actionPointsOverdrawn,
+      actionIntensity: consequence.actionIntensity,
+      negativeActionPointMonth: consequence.negativeActionPointMonth,
+      consequenceEffects: { ...consequence.effects },
       exchangeRate: plan.exchangeRate,
       salaryJpy: stats.salaryJpy,
       sideHustleIncomeJpy,

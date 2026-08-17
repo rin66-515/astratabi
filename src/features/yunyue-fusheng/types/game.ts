@@ -168,6 +168,12 @@ export type MonthlyEventKind = 'normal' | 'major' | 'minigame'
 export type MonthlyEventDefinition = {
   kind: MonthlyEventKind
   event: GameEvent
+  weightRules?: MonthlyEventWeightRule[]
+}
+
+export type MonthlyEventWeightRule = {
+  conditions: EventCondition[]
+  multiplier: number
 }
 
 export type MonthlyEventSlotStatus = 'none' | 'pending' | 'mini_game_pending' | 'completed'
@@ -289,6 +295,10 @@ export type MonthSettlement = {
   debtRmbBefore: number
   actionPointsGranted: number
   actionPointsSpent: number
+  actionPointsOverdrawn: number
+  actionIntensity: number
+  negativeActionPointMonth: boolean
+  consequenceEffects: GameEffects
   exchangeRate: number
   salaryJpy: number
   sideHustleIncomeJpy: number

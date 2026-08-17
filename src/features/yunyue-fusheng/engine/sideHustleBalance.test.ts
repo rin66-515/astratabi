@@ -29,4 +29,14 @@ describe('side hustle balance simulation', () => {
     expect(summary.cumulativeSideIncomeJpy.median).toBeLessThanOrEqual(summary.cumulativeSideIncomeJpy.p90)
     expect(Object.values(summary.medianRouteLevels).some((level) => level > 0)).toBe(true)
   })
+
+  it('distinguishes deliberate overwork through negative AP months', () => {
+    const overwork = simulateBalanceRun('high_overwork', 12, 123)
+    const regular = simulateBalanceRun('freelance_only', 12, 123)
+
+    expect(overwork.negativeActionPointMonths).toBeGreaterThan(0)
+    expect(regular.negativeActionPointMonths).toBe(0)
+    expect(overwork.recoveryDebt).toBeGreaterThan(regular.recoveryDebt)
+  })
+
 })
