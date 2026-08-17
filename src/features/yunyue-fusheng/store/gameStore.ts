@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { firstMonthEventMap, firstMonthEvents } from '../data/events/firstMonth'
 import { createEndingDebugState } from '../data/endingDebugScenarios'
 import { createInitialGameSaveState } from '../data/initialState'
+import { monthlyEventDefinitions, monthlyEventMap } from '../data/monthlyEvents'
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
 import { applyEffects } from '../engine/applyEffects'
 import { checkConditions } from '../engine/checkCondition'
@@ -11,6 +12,12 @@ import { pickNextStoryEvent } from '../engine/eventSelection'
 import { resolveMonthTransition } from '../engine/monthResolver'
 import { createMonthlyPlan } from '../engine/monthPlanning'
 import { getMaximumExtraPaymentRmb, settleMonth } from '../engine/monthSettlement'
+import {
+  completeMonthlyEventSlot,
+  completeMonthlyMiniGameSlot,
+  selectMonthlyEventSlot,
+} from '../engine/monthlyEventSlot'
+import { applyMiniGameResult } from '../engine/minigameResolver'
 import {
   applySideHustleOutcome,
   sideHustleMonthlyActionProvider,
@@ -23,6 +30,7 @@ import type {
   GameSaveState,
   GameStats,
   Language,
+  MiniGameResult,
   MonthlyPlan,
 } from '../types/game'
 import { trackEvent } from '../utils/trackEvent'
@@ -45,6 +53,7 @@ type GameActions = {
   continueAfterMonthSettlement: () => void
   completeAnnualReport: () => void
   continueAfterStageEnding: () => void
+  completeMonthlyMiniGame: (result: MiniGameResult) => void
   chooseDebtFreeMonth: (optionId: string) => void
   completeDebtFreeScene: () => void
   simulateFinalEnding: (endingId: FinalEndingId) => void
@@ -91,9 +100,19 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
     ...calendar,
     elapsedMonth: elapsedMonths,
   })
+  const monthlyEventSlot = selectMonthlyEventSlot(monthlyEventDefinitions, {
+    month: calendar.month,
+    stats: state.stats,
+    flags: state.flags,
+    completedEventIds: state.completedEventIds,
+  }, elapsedMonths)
   return {
     ...calendar,
-    screen: 'monthly-cycle',
+    screen: monthlyEventSlot.status === 'pending' ? 'event' : 'monthly-cycle',
+    currentEventId: monthlyEventSlot.eventId,
+    resolution: null,
+    activeMiniGame: null,
+    monthlyEventSlot,
     stats: { ...state.stats, actionPoints: monthlyPlan.actionPointsGranted },
     sideHustles,
     monthlyPlan,
@@ -189,7 +208,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   chooseOption: (optionId) => {
     const state = get()
     if (!state.currentEventId || state.resolution) return
-    const event = firstMonthEventMap.get(state.currentEventId)
+    const event = firstMonthEventMap.get(state.currentEventId) ?? monthlyEventMap.get(state.currentEventId)
     const option = event?.options.find((candidate) => candidate.id === optionId)
     if (!event || !option) return
 
@@ -226,8 +245,38 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   advance: () => {
     const state = get()
     if (!state.currentEventId || !state.resolution) return
-    const event = firstMonthEventMap.get(state.currentEventId)
+    const event = firstMonthEventMap.get(state.currentEventId) ?? monthlyEventMap.get(state.currentEventId)
     if (!event) return
+
+    if (state.monthlyEventSlot?.eventId === event.id) {
+      const monthlyEventSlot = completeMonthlyEventSlot(state.monthlyEventSlot)
+      if (monthlyEventSlot.status === 'mini_game_pending' && monthlyEventSlot.miniGame) {
+        const startedAt = new Date().toISOString()
+        set({
+          screen: 'monthly-minigame',
+          currentEventId: null,
+          resolution: null,
+          monthlyEventSlot,
+          activeMiniGame: {
+            eventId: event.id,
+            configId: monthlyEventSlot.miniGame.configId,
+            type: monthlyEventSlot.miniGame.type,
+            stageIndex: 0,
+            answers: {},
+            stageStartedAt: startedAt,
+            deadlineAt: null,
+          },
+        })
+      } else {
+        set({
+          screen: 'monthly-cycle',
+          currentEventId: null,
+          resolution: null,
+          monthlyEventSlot,
+        })
+      }
+      return
+    }
 
     if (event.onComplete) {
       set({ screen: event.onComplete, currentEventId: null, resolution: null })
@@ -408,6 +457,23 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     set(nextMonthlyCycle(progressedState))
   },
 
+  completeMonthlyMiniGame: (result) => {
+    const state = get()
+    if (
+      state.screen !== 'monthly-minigame'
+      || !state.activeMiniGame
+      || state.monthlyEventSlot?.status !== 'mini_game_pending'
+    ) return
+    const applied = applyMiniGameResult(state, result)
+    set({
+      screen: 'monthly-cycle',
+      stats: applied.stats,
+      flags: applied.flags,
+      activeMiniGame: null,
+      monthlyEventSlot: completeMonthlyMiniGameSlot(state.monthlyEventSlot),
+    })
+  },
+
   chooseDebtFreeMonth: (optionId) => {
     const state = get()
     const effects = debtFreeChoices[optionId]
@@ -444,7 +510,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   },
 }), {
   name: SAVE_KEY,
-  version: 5,
+  version: 6,
   storage: createJSONStorage(() => window.localStorage),
   migrate: migrateGameSave,
   partialize: (state): GameSaveState => ({
@@ -461,6 +527,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     startedAt: state.startedAt,
     progress: state.progress,
     activeMiniGame: state.activeMiniGame,
+    monthlyEventSlot: state.monthlyEventSlot,
     sideHustles: state.sideHustles,
     monthlyPlan: state.monthlyPlan,
     monthlySettlements: state.monthlySettlements,

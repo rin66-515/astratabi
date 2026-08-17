@@ -30,6 +30,7 @@ describe('migrateGameSave', () => {
     expect(migrated.progress.stageDeadlineMonths).toBe(18)
     expect(migrated.progress.elapsedMonths).toBe(1)
     expect(migrated.activeMiniGame).toBeNull()
+    expect(migrated.monthlyEventSlot).toBeNull()
     expect(migrated.sideHustles.totalIncomeJpy).toBe(0)
     expect(migrated.monthlyPlan).toBeNull()
     expect(migrated.monthlySettlements).toEqual([])
@@ -72,5 +73,26 @@ describe('migrateGameSave', () => {
     expect(migrated.month).toBe(10)
     expect(migrated.sideHustles.totalIncomeJpy).toBe(0)
     expect(migrated.sideHustles.routes.own_product.unlockedAtMonth).toBeNull()
+  })
+
+  it('adds no monthly event to an existing v5 save and preserves a v6 slot contract', () => {
+    const source = migrateGameSave({}, 1)
+    expect(migrateGameSave({ ...source, monthlyEventSlot: undefined }, 5).monthlyEventSlot).toBeNull()
+
+    const migrated = migrateGameSave({
+      ...source,
+      screen: 'monthly-minigame',
+      monthlyEventSlot: {
+        elapsedMonth: 6,
+        kind: 'minigame',
+        eventId: 'monthly-read-air',
+        status: 'mini_game_pending',
+        miniGame: { type: 'read_the_air', configId: 'read-air-v1' },
+      },
+    }, 6)
+
+    expect(migrated.screen).toBe('monthly-minigame')
+    expect(migrated.monthlyEventSlot?.status).toBe('mini_game_pending')
+    expect(migrated.monthlyEventSlot?.miniGame?.configId).toBe('read-air-v1')
   })
 })

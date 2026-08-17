@@ -12,6 +12,9 @@ import type {
   GameStats,
   Language,
   MonthSettlement,
+  MiniGameType,
+  MonthlyEventKind,
+  MonthlyEventSlotState,
   MonthlyActionSelection,
   MonthlyPlan,
   SideHustleActionOutcome,
@@ -86,8 +89,43 @@ function screenOf(value: unknown): GameScreen {
     || value === 'debt-free-month'
     || value === 'debt-free-scene'
     || value === 'final-ending'
+    || value === 'monthly-minigame'
     ? value
     : 'event'
+}
+
+function monthlyEventKindOf(value: unknown): MonthlyEventKind | null {
+  return value === 'normal' || value === 'major' || value === 'minigame' ? value : null
+}
+
+function miniGameTypeOf(value: unknown): MiniGameType | null {
+  return value === 'read_the_air' || value === 'incident_response' || value === 'design_review'
+    ? value
+    : null
+}
+
+function migrateMonthlyEventSlot(value: unknown): MonthlyEventSlotState | null {
+  if (!isRecord(value)) return null
+  const kind = monthlyEventKindOf(value.kind)
+  const eventId = typeof value.eventId === 'string' ? value.eventId : null
+  const status = value.status === 'pending'
+    || value.status === 'mini_game_pending'
+    || value.status === 'completed'
+    ? value.status
+    : 'none'
+  const miniGameType = isRecord(value.miniGame) ? miniGameTypeOf(value.miniGame.type) : null
+  const miniGame = isRecord(value.miniGame)
+    && miniGameType
+    && typeof value.miniGame.configId === 'string'
+    ? { type: miniGameType, configId: value.miniGame.configId }
+    : null
+  return {
+    elapsedMonth: Math.max(1, finiteNumber(value.elapsedMonth, 1)),
+    kind,
+    eventId,
+    status,
+    miniGame,
+  }
 }
 
 function sideHustleRouteIdOf(value: unknown): SideHustleRouteId | null {
@@ -221,6 +259,7 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
     startedAt: typeof persistedState.startedAt === 'string' ? persistedState.startedAt : null,
     progress: migrateProgress(persistedState.progress),
     activeMiniGame: null,
+    monthlyEventSlot: migrateMonthlyEventSlot(persistedState.monthlyEventSlot),
     sideHustles: migrateSideHustles(persistedState.sideHustles),
     monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan, stats.cashJpy),
     monthlySettlements: Array.isArray(persistedState.monthlySettlements)

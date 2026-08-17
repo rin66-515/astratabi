@@ -54,6 +54,10 @@ describe('playable ending flow', () => {
     useGameStore.getState().completeAnnualReport()
     expect(useGameStore.getState().screen).toBe('monthly-cycle')
     expect(useGameStore.getState().progress.elapsedMonths).toBe(13)
+    expect(useGameStore.getState().monthlyEventSlot).toMatchObject({
+      elapsedMonth: 13,
+      status: 'none',
+    })
   })
 
   it('continues to month 19 after the month-18 stage ending', () => {
@@ -68,6 +72,10 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().screen).toBe('monthly-cycle')
     expect(useGameStore.getState().progress.elapsedMonths).toBe(19)
     expect(useGameStore.getState().progress.resolvedStageEndingMonths).toContain(18)
+    expect(useGameStore.getState().monthlyEventSlot).toMatchObject({
+      elapsedMonth: 19,
+      status: 'none',
+    })
   })
 
   it('enters the debt-free month immediately after early debt clearance', () => {
@@ -78,6 +86,7 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().screen).toBe('debt-free-month')
     expect(useGameStore.getState().progress.debtClearedMonth).toBe(10)
     expect(useGameStore.getState().progress.elapsedMonths).toBe(11)
+    expect(useGameStore.getState().monthlyEventSlot).toBeNull()
   })
 
   it('requires the debt-free month and 02:17 scene before a final ending', () => {
@@ -141,5 +150,21 @@ describe('playable ending flow', () => {
     useGameStore.getState().completeMonth()
     expect(useGameStore.getState().monthlySettlements.at(-1)?.sideHustleIncomeJpy).toBe(2_000)
     expect(useGameStore.getState().screen).toBe('month-settlement')
+  })
+
+  it('does not reroll an empty monthly event slot while preparing the same month', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      ...state,
+      screen: 'preview',
+      progress: { ...state.progress, elapsedMonths: 1 },
+    })
+
+    useGameStore.getState().enterNextMonth()
+    const selectedSlot = useGameStore.getState().monthlyEventSlot
+    expect(selectedSlot).toMatchObject({ elapsedMonth: 2, status: 'none' })
+
+    useGameStore.getState().prepareMonth()
+    expect(useGameStore.getState().monthlyEventSlot).toEqual(selectedSlot)
   })
 })

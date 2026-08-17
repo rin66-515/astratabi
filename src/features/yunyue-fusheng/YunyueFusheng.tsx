@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { firstMonthEventMap } from './data/events/firstMonth'
+import { monthlyEventMap } from './data/monthlyEvents'
 import { resolveFinalEnding } from './engine/endingResolver'
 import { AnnualReportPage } from './pages/AnnualReportPage'
 import { CoverPage } from './pages/CoverPage'
@@ -25,7 +26,9 @@ export function YunyueFusheng({ onExit }: { onExit: () => void }) {
   const [debugOpen, setDebugOpen] = useState(false)
   const reduceMotion = useReducedMotion()
   const game = useGameStore()
-  const currentEvent = game.currentEventId ? firstMonthEventMap.get(game.currentEventId) : undefined
+  const currentEvent = game.currentEventId
+    ? firstMonthEventMap.get(game.currentEventId) ?? monthlyEventMap.get(game.currentEventId)
+    : undefined
   const latestSettlement = game.monthlySettlements.at(-1)
   const prepareMonth = game.prepareMonth
   const shouldPrepareMonth = opened && game.screen === 'monthly-cycle' && !game.monthlyPlan

@@ -7,6 +7,7 @@ export type LocalizedText = {
 
 export type GameScreen =
   | 'event'
+  | 'monthly-minigame'
   | 'month-intro'
   | 'month-summary'
   | 'preview'
@@ -162,6 +163,23 @@ export type GameEvent = {
   options: EventOption[]
 }
 
+export type MonthlyEventKind = 'normal' | 'major' | 'minigame'
+
+export type MonthlyEventDefinition = {
+  kind: MonthlyEventKind
+  event: GameEvent
+}
+
+export type MonthlyEventSlotStatus = 'none' | 'pending' | 'mini_game_pending' | 'completed'
+
+export type MonthlyEventSlotState = {
+  elapsedMonth: number
+  kind: MonthlyEventKind | null
+  eventId: string | null
+  status: MonthlyEventSlotStatus
+  miniGame: MiniGameTrigger | null
+}
+
 export type EventContext = {
   month: number
   stats: GameStats
@@ -300,6 +318,7 @@ export type GameSaveState = {
   startedAt: string | null
   progress: VolumeProgress
   activeMiniGame: MiniGameSession | null
+  monthlyEventSlot: MonthlyEventSlotState | null
   sideHustles: SideHustleState
   monthlyPlan: MonthlyPlan | null
   monthlySettlements: MonthSettlement[]

@@ -69,6 +69,7 @@ export function createInitialGameSaveState(language: Language): GameSaveState {
     startedAt: null,
     progress: { ...initialVolumeProgress },
     activeMiniGame: null,
+    monthlyEventSlot: null,
     sideHustles: createInitialSideHustleState(),
     monthlyPlan: null,
     monthlySettlements: [],
