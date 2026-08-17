@@ -61,6 +61,9 @@ h1, h2, h3, p { margin-top: 0; }
 .button.disabled { cursor: not-allowed; opacity: .55; color: white; background: var(--ink); }
 .text-link, .text-button { display: inline-block; padding: 0; border: 0; color: var(--jade-bright); background: transparent; font-size: 13px; }
 .text-link span { margin-left: 8px; }
+.game-route-loading { display: grid; min-height: 100dvh; place-content: center; gap: 9px; color: #e7dfce; background: #111923; text-align: center; }
+.game-route-loading p { margin: 0; font: 500 20px 'Shippori Mincho', serif; letter-spacing: .12em; }
+.game-route-loading small { color: rgba(231, 223, 206, .55); font-size: 10px; letter-spacing: .1em; }
 
 .shop-entrance {
   position: relative;
@@ -281,6 +284,8 @@ h1, h2, h3, p { margin-top: 0; }
 .wood-sign::after { position: absolute; inset: 9px 10px 11px 9px; border: 1px solid rgba(62, 35, 18, .18); border-radius: 2px 5px 3px 6px; content: ''; box-shadow: inset 0 0 18px rgba(59, 34, 19, .08); pointer-events: none; }
 .wood-sign small { display: block; margin-bottom: 24px; color: rgba(47, 31, 19, .72); font-size: 10px; letter-spacing: .25em; }
 .wood-sign p { position: relative; z-index: 1; margin-bottom: 10px; font-size: 18px; line-height: 1.7; }
+.sign-action { position: relative; z-index: 3; display: inline-block; margin-top: 14px; padding-bottom: 3px; border-bottom: 1px solid rgba(83, 48, 25, .55); color: #5f331d; font-size: 12px; letter-spacing: .12em; }
+.sign-action:hover { color: #8b3028; border-color: #8b3028; }
 .sign-seal { position: absolute; right: 26px; bottom: 22px; z-index: 2; display: grid; width: 38px; height: 38px; transform: rotate(-4deg); place-items: center; border: 2px solid rgba(111, 34, 28, .8); color: rgba(111, 34, 28, .86); font: 600 13px / 1 'Shippori Mincho', serif; letter-spacing: .06em; box-shadow: inset 0 0 0 2px rgba(111, 34, 28, .17); }
 .sign-rope { position: absolute; top: -86px; left: 50%; width: 198px; height: 108px; transform: translateX(-50%) rotate(-1.2deg); border: 4px solid #756044; border-bottom: 0; border-radius: 104px 96px 0 0; filter: drop-shadow(2px 4px 2px rgba(0, 0, 0, .2)); }
 .sign-nail { position: absolute; top: 17px; z-index: 2; width: 12px; height: 12px; border: 2px solid #44372c; border-radius: 50%; background: #665746; box-shadow: inset -1px -1px 2px rgba(15, 12, 9, .34); }
@@ -337,6 +342,10 @@ h1, h2, h3, p { margin-top: 0; }
 .package-card h3 { margin: 32px 0 15px; font: 500 25px 'Shippori Mincho', serif; }
 .package-card > p:not(.status) { max-width: 430px; color: #5b6073; font-size: 13px; line-height: 1.9; }
 .package-card > span { color: var(--jade-bright); font: 11px 'DM Mono', monospace; }
+.game-work-card { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; max-width: 1180px; margin: 42px auto 0; padding: 42px; border: 1px solid rgba(57, 72, 83, .24); background: linear-gradient(118deg, rgba(236, 238, 235, .92), rgba(228, 234, 237, .72)); }
+.game-work-card h3 { margin: 14px 0; font: 500 28px 'Shippori Mincho', serif; }
+.game-work-card p:not(.status) { max-width: 700px; margin-bottom: 0; color: #565e68; font-size: 13px; line-height: 1.9; }
+.game-work-card .button { flex: 0 0 auto; }
 .fulfillment-flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1180px; margin: 48px auto; padding: 0; list-style: none; }
 .fulfillment-flow li { display: flex; gap: 15px; padding-top: 18px; border-top: 1px solid var(--line); }
 .fulfillment-flow > li > span { color: var(--gold); font: 11px 'DM Mono', monospace; }
@@ -627,7 +636,7 @@ footer small { margin-left: auto; font: 10px 'DM Mono', monospace; }
   .contribution-desk { padding: 32px 24px; }
   .contribution-form { grid-template-columns: 1fr; }
   .contribution-form .form-wide { grid-column: auto; }
-  .renovation-note, .counter-card { align-items: flex-start; flex-direction: column; }
+  .renovation-note, .counter-card, .game-work-card { align-items: flex-start; flex-direction: column; }
   .story-scroll, .backyard-gate { padding: 38px 26px; }
   .admin-panel, .admin-audit, .admin-detail { padding: 22px; }
   .admin-package-upload, .admin-package-list article { grid-template-columns: 1fr; }

@@ -7,6 +7,7 @@ export type SignCategory =
   | 'snow'
   | 'weekend'
   | 'update'
+  | 'game'
   | 'inactive'
   | 'special'
   | 'opening'
@@ -20,6 +21,7 @@ export type SignMessage = {
   lines: readonly string[]
   updateKind?: UpdateKind
   specialDayKind?: SpecialDayKind
+  action?: { label: string; href: string }
 }
 
 export const signMessages: Record<SignCategory, readonly SignMessage[]> = {
@@ -81,6 +83,12 @@ export const signMessages: Record<SignCategory, readonly SignMessage[]> = {
     { id: 'update-story', updateKind: 'STORY', lines: ['今日说书。', '故事刚讲到一半。'] },
     { id: 'update-backyard', updateKind: 'BACKYARD', lines: ['后院传来动静。', '想来又做出了什么东西。'] },
     { id: 'update-music', updateKind: 'MUSIC', lines: ['长亭有人弹琴。', '曲子不熟。', '胜在认真。'] },
+  ],
+  game: [
+    { id: 'game-01', lines: ['灯下多了一卷薄册。', '封面只写着：浮生。', '若有闲，不妨替他走一程。'], action: { label: '翻开此卷', href: '#fusheng' } },
+    { id: 'game-02', lines: ['掌柜留下半卷旧账。', '写的是旁人的人生。', '也可能，是你的。'], action: { label: '入卷看看', href: '#fusheng' } },
+    { id: 'game-03', lines: ['今夜不说书。', '桌上只有一段未走完的人生。', '落笔之处，由来客自己选。'], action: { label: '替他走一程', href: '#fusheng' } },
+    { id: 'game-04', lines: ['极东来了一封旧信。', '纸上有债，有病，也有月光。', '小二尚未拆完。'], action: { label: '拆信', href: '#fusheng' } },
   ],
   inactive: [
     { id: 'inactive-01', lines: ['掌柜许久未归。', '炉火倒还没有灭。'] },

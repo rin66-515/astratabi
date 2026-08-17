@@ -73,6 +73,12 @@ export function selectSignMessage(now = new Date(), config: ShopStatusConfig = s
     if (messages.length > 0) return selectFrom('update', messages, now, config)
   }
 
+  const gamePromoThreshold = Math.round(Math.min(1, Math.max(0, config.gamePromoChance)) * 10_000)
+  const gamePromoSeed = `${localDateKey(now)}:game-promo:${config.selectionVersion}`
+  if (config.gamePromoEnabled && stableIndex(gamePromoSeed, 10_000) < gamePromoThreshold) {
+    return selectFrom('game', signMessages.game, now, config)
+  }
+
   if (daysSince(config.lastContentUpdatedAt, now) >= config.inactiveAfterDays) {
     return selectFrom('inactive', signMessages.inactive, now, config)
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type FormEvent } from 'react'
 import logo from './assets/astratabi-logo-main.png'
 import entranceScene from './assets/yunyue-shop-entrance-v1.webp'
 import { BackgroundMusic, type BackgroundMusicHandle } from './components/BackgroundMusic'
@@ -32,6 +32,8 @@ import {
   type DeliverySummaryCounts,
 } from './api/client'
 
+const YunyueFusheng = lazy(() => import('./features/yunyue-fusheng/YunyueFusheng').then((module) => ({ default: module.YunyueFusheng })))
+
 const diary = [
   { date: '2026.08.09', text: '掌柜飞剑传书　⇒　近日山中事务繁忙，但我要偷懒一会儿', tag: '日々' },
   { date: '2026.07.26', text: '遠回りの夜にも、次の一歩を照らす月がある。', tag: '日々' },
@@ -50,7 +52,7 @@ const navItems = [
 ] as const
 
 type PublicPage = 'home' | 'not-found' | (typeof navItems)[number][0]
-type Page = PublicPage | 'delivery' | 'admin'
+type Page = PublicPage | 'delivery' | 'admin' | 'fusheng'
 type Route = { page: Page, token?: string }
 
 const pageMeta: Record<Page, { number: string, label: string }> = {
@@ -64,6 +66,7 @@ const pageMeta: Record<Page, { number: string, label: string }> = {
   'not-found': { number: '？', label: '未行之路' },
   delivery: { number: 'DL', label: '专属交付' },
   admin: { number: 'AD', label: '配布管理' },
+  fusheng: { number: '卷一', label: '云月浮生' },
 }
 
 function routeFromHash(): Route {
@@ -71,6 +74,7 @@ function routeFromHash(): Route {
   const publicPages = navItems.map(([id]) => id) as string[]
   if (routeName === 'delivery') return { page: 'delivery', token: new URLSearchParams(query).get('token') ?? undefined }
   if (routeName === 'admin' || routeName === 'admin-preview') return { page: 'admin' }
+  if (routeName === 'fusheng') return { page: 'fusheng' }
   if (!routeName || routeName === 'home' || routeName === 'shop') return { page: 'home' }
   return { page: publicPages.includes(routeName) ? routeName as PublicPage : 'not-found' }
 }
@@ -91,6 +95,8 @@ function App() {
   const backgroundMusicRef = useRef<BackgroundMusicHandle>(null)
   const activePage = pageMeta[route.page]
   const isPrivateRoute = route.page === 'admin' || route.page === 'delivery'
+  const isGameRoute = route.page === 'fusheng'
+  const isStandaloneRoute = isPrivateRoute || isGameRoute
 
   useEffect(() => {
     const syncRoute = () => {
@@ -139,10 +145,12 @@ function App() {
     <>
       <BackgroundMusic
         ref={backgroundMusicRef}
-        visible={entered && !isPrivateRoute}
-        suspended={isPrivateRoute}
+        visible={entered && !isStandaloneRoute}
+        suspended={isStandaloneRoute}
       />
-      {!isPrivateRoute && !entered
+      {isGameRoute
+        ? <Suspense fallback={<main className="game-route-loading"><p>卷册正在展开……</p><small>风过纸页，稍候片刻。</small></main>}><YunyueFusheng onExit={() => { window.location.hash = 'workshop' }} /></Suspense>
+        : !isPrivateRoute && !entered
         ? <ShopEntrance opening={opening} onEnter={enterShop} />
         : <main className={route.page === 'admin' ? 'admin-shell' : 'shop-shell'}>
           <aside className="wide-rail" aria-hidden="true"><span>{activePage.number}</span><i /><small>{activePage.label}</small></aside>
@@ -253,6 +261,7 @@ function ShopHome() {
         <i className="sign-nail nail-right" aria-hidden="true" />
         <small>今日木牌</small>
         {sign.message.lines.map((line) => <p key={line}>{line}</p>)}
+        {sign.message.action && <a className="sign-action" href={sign.message.action.href}>{sign.message.action.label}</a>}
         <span className="sign-seal" aria-label="店小二八千">八千</span>
       </aside>
     </section>
@@ -316,6 +325,7 @@ function Library() {
 function Workshop() {
   return <section className="section room-section resources-section"><RoomHeading number="03" title="百工坊" description="这里不卖课程。这里只放亲手做过、反复修改过、能够说明来路的作品。" />
     <div className="resources-grid"><article className="package-card"><p className="status">模拟实战项目</p><h3>ASRAY 日本 IT 项目</h3><p>从要件定义、基本设计、详细设计，到 API、数据库、制造、测试与 Release 的完整项目记录。</p><span>作品仍在持续制作</span></article><article className="package-card"><p className="status">专属交付</p><h3>客户资料交付</h3><p>确认后通过专属链接设置资料密码，生成客户专属加密文件，并管理有效期与下载次数。</p><a className="text-link" href="#delivery">持有链接的客人请进 →</a></article></div>
+    <article className="game-work-card"><div><p className="status">卷式互动人生</p><h3>《云月浮生》第一卷 · 极东</h3><p>第二次来到日本。第一次工资还要三十四天，人民币债务却不会停下。若这一程由你来走，会走成什么样？</p></div><a className="button outline" href="#fusheng">翻开此卷</a></article>
     <div className="counter-card"><div><p className="status">柜台</p><h3>有事可以找店小二</h3><p>项目资料、交付物与合作事宜，通过微信人工确认。联系方式正式公开前，柜台暂不接单。</p></div><span>お客様サポート · 装修中</span></div>
   </section>
 }

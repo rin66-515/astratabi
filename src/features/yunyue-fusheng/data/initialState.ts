@@ -1,0 +1,26 @@
+import type { GameStats } from '../types/game'
+
+export const initialGameStats: GameStats = {
+  debtRmb: 100_000,
+  cashJpy: 260_000,
+  salaryJpy: 255_000,
+  exchangeRate: 0.048,
+  actionPoints: 7,
+  health: 65,
+  mental: 65,
+  socialBattery: 60,
+  freedom: 10,
+  japanese: 75,
+  tech: 35,
+  workplace: 30,
+  product: 10,
+  stress: 30,
+  recoveryDebt: 20,
+  lossOfControl: 10,
+  obsession: 20,
+  lifePoverty: 20,
+  workTrust: 0,
+  debtStress: 70,
+  observerActivity: 20,
+  boundary: 10,
+}

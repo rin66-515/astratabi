@@ -13,6 +13,8 @@ export type ShopStatusConfig = {
   weather: ShopWeather
   specialDay: SpecialDayKind | null
   latestUpdate: UpdateKind | null
+  gamePromoEnabled: boolean
+  gamePromoChance: number
   lastContentUpdatedAt: string
   newContentForDays: number
   inactiveAfterDays: number
@@ -36,6 +38,8 @@ export const shopStatus: ShopStatusConfig = {
   weather: 'CLEAR',
   specialDay: null,
   latestUpdate: null,
+  gamePromoEnabled: true,
+  gamePromoChance: 0.12,
   lastContentUpdatedAt: '2026-07-30',
   newContentForDays: 3,
   inactiveAfterDays: 30,

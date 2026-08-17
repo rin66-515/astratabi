@@ -82,6 +82,45 @@ mvn.cmd spring-boot:run
 
 上述交付闭环已在本地 Docker 通过自动测试与跨系统 E2E。正式服务器、TLS、外部备份、正式客户 UAT 与 Go/No-Go 仍未实施。人工微信收款继续作为运营流程，不接支付 API。
 
+## 《云月浮生》游戏 MVP
+
+《云月浮生》是云月小铺内的独立文字叙事 feature。启动前端后可直接访问：
+
+```text
+http://127.0.0.1:18100/#fusheng
+```
+
+也可从“百工坊”的固定作品入口进入。首页“今日木牌”会按日期稳定地偶尔显示入卷文案；同一天刷新页面不会反复变化。
+
+当前内容为第一卷“极东”的序章、2024 年 8 月完整流程和 9 月预告。存档保存在浏览器 `localStorage`，不上传后台；清除浏览器数据或更换设备后无法继续原存档。
+
+### 增加一个新事件
+
+1. 在 `src/features/yunyue-fusheng/data/events/` 对应月份文件中新增 `GameEvent`。
+2. 使用唯一 `id`，并提供中日双语 `title`、`text` 和 `options`。
+3. 数值变化统一写入 `effects`，不要在 React 页面中判断具体事件 ID。
+4. 前置条件使用 `stat`、`flag`、`completedEvent` 或 `month`；随机事件设置 `weight`。
+5. 新增因果事件时，先由前一事件写入 flag，再由后续事件检查 flag，避免纯随机剧情。
+6. 运行 `npm.cmd test`、`npm.cmd run lint` 和 `npm.cmd run build`。
+
+### 增加一种新语言
+
+1. 扩展 `src/features/yunyue-fusheng/types/game.ts` 中的 `Language`。
+2. 扩展 `LocalizedText`，并为所有事件和界面固定文案补充该语言。
+3. 在 `LanguageSwitch` 增加可访问的切换按钮。
+4. 在 `localize()` 与日期/金额格式化处增加对应 locale。
+5. 完整游玩序章、一个月份、月末总结和预告，确认没有回退成其他语言。
+
+### 扩展第二个月
+
+1. 新建 `data/events/secondMonth.ts`，月份设为 `9`。
+2. 先定义工资到账、固定支出、最低还款和“寻找额外收入”解锁事件，再增加随机池。
+3. 月末切换时结算工资、利息和最低还款，并在保存数据中更新月份。
+4. 继续复用 `applyEffects()`、条件系统和权重抽取，不在页面组件内增加月份分支。
+5. 存档结构发生变化时提高 persist `version` 并提供迁移函数，不能让旧存档静默损坏。
+
+游戏代码入口为 `src/features/yunyue-fusheng/YunyueFusheng.tsx`；事件引擎、内容、状态和样式均在该 feature 内独立维护。
+
 ## 主要 API
 
 - `GET /api/v1/deliveries/{token}`
