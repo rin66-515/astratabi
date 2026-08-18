@@ -236,6 +236,15 @@
 .fixedExpenseList li { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; border-bottom: 1px solid rgba(50, 47, 40, .1); font-size: 11px; }
 .fixedExpenseList span { color: var(--game-muted); }
 .fixedExpenseList strong { font: 11px 'DM Mono', monospace; }
+.lifestyleBlock { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(50, 47, 40, .1); }
+.lifestyleBlock h3 { margin: 0 0 6px; font-size: 12px; }
+.lifestyleBlock p { margin: 0 0 10px; color: var(--game-muted); font-size: 10px; }
+.lifestyleOptions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.lifestyleOptions button { min-height: 34px; border: 1px solid rgba(50, 47, 40, .18); background: rgba(255, 253, 247, .62); color: var(--game-ink); font-size: 10px; }
+.lifestyleOptions button[aria-pressed='true'] { border-color: rgba(135, 49, 34, .62); background: rgba(135, 49, 34, .08); color: #742f25; }
+.settlementDetails { margin-top: 14px; border-top: 1px solid rgba(50, 47, 40, .12); padding-top: 12px; }
+.settlementDetails summary { cursor: pointer; color: var(--game-muted); font-size: 10px; }
+.settlementDetails dl { margin-top: 10px; }
 .extraPaymentBlock { margin-top: 24px; }
 .extraPaymentBlock h3 { margin-bottom: 8px; font: 500 16px 'Shippori Mincho', serif; }
 .extraPaymentBlock p { margin-bottom: 13px; color: var(--game-muted); font-size: 10px; line-height: 1.7; }
@@ -395,6 +404,7 @@
   .monthCycleLedger div:nth-last-child(-n + 3) { border-bottom: 1px solid rgba(50, 47, 40, .1); }
   .monthCycleLedger div:nth-last-child(-n + 2) { border-bottom: 0; }
   .monthOperatingGrid, .settlementGrid { grid-template-columns: 1fr; }
+  .lifestyleOptions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sideHustleGrid { grid-template-columns: repeat(2, 1fr); }
   .monthClosingBar { align-items: stretch; flex-direction: column; }
   .reportGrid { grid-template-columns: 1fr; gap: 28px; }

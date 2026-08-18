@@ -59,6 +59,9 @@ export type EventCondition =
   | { type: 'completedEvent'; eventId: string; completed?: boolean }
   | { type: 'month'; operator: ComparisonOperator; value: number }
   | { type: 'elapsedMonth'; operator: ComparisonOperator; value: number }
+  | { type: 'foodLifestyle'; value: FoodLifestyle }
+  | { type: 'smokingLevel'; value: SmokingLevel }
+  | { type: 'foodLifestyleMonths'; operator: ComparisonOperator; value: number }
   | {
     type: 'sideHustle'
     routeId: SideHustleRouteId
@@ -168,6 +171,7 @@ export type EventOption = {
   removeFlags?: string[]
   response?: LocalizedText[]
   consequences?: ConditionalConsequence[]
+  monthlyCost?: { category: 'smoking'; amountJpy: number }
   /** Existing MVP compatibility; migrate content to tone: 'jianghu' in the event integration slice. */
   fantasy?: boolean
 }
@@ -217,6 +221,7 @@ export type EventContext = {
   flags: string[]
   completedEventIds: string[]
   sideHustles: SideHustleState
+  livingProfile: LivingProfile
 }
 
 export type ChoiceHistoryEntry = {
@@ -296,8 +301,36 @@ export type MonthlyActionSelection = {
   sideHustle?: SideHustleActionOutcome
 }
 
+export type FoodLifestyle = 'survival' | 'frugal' | 'balanced' | 'comfortable'
+export type SmokingLevel = 'none' | 'light' | 'regular' | 'heavy'
+
+export type EmploymentState = {
+  baseSalaryJpy: number
+  roleAllowanceJpy: number
+  mentorAllowanceJpy: number
+  overtimeIncomeJpy: number
+  isMentoringJunior: boolean
+  lastSalaryReviewMonth: number
+}
+
+export type IncomeBreakdown = {
+  baseSalaryJpy: number
+  roleAllowanceJpy: number
+  mentorAllowanceJpy: number
+  overtimeIncomeJpy: number
+  totalIncomeJpy: number
+  raiseJpy: number
+}
+
+export type LivingProfile = {
+  foodLifestyle: FoodLifestyle
+  consecutiveFoodLifestyleMonths: number
+  smokingLevel: SmokingLevel
+  stressSmokingCount: number
+}
+
 export type FixedExpenseItem = {
-  id: 'rent' | 'food' | 'utilities' | 'telecom' | 'transport_daily'
+  id: 'rent' | 'food' | 'utilities' | 'telecom' | 'transport' | 'smoking' | 'other_basic'
   amountJpy: number
 }
 
@@ -309,6 +342,10 @@ export type MonthlyPlan = {
   actionPointsGranted: number
   actionPointsRemaining: number
   exchangeRate: number
+  income: IncomeBreakdown
+  foodLifestyle: FoodLifestyle
+  smokingLevel: SmokingLevel
+  extraSmokingJpy: number
   selectedActions: MonthlyActionSelection[]
   extraPaymentRmb: number
 }
@@ -325,9 +362,15 @@ export type MonthSettlement = {
   actionIntensity: number
   negativeActionPointMonth: boolean
   consequenceEffects: GameEffects
+  livingEffects: GameEffects
   exchangeRate: number
   salaryJpy: number
+  income: IncomeBreakdown
   sideHustleIncomeJpy: number
+  foodLifestyle: FoodLifestyle
+  smokingLevel: SmokingLevel
+  foodCostJpy: number
+  smokingCostJpy: number
   fixedExpenses: FixedExpenseItem[]
   fixedExpensesJpy: number
   interestRmb: number
@@ -356,6 +399,8 @@ export type GameSaveState = {
   activeMiniGame: MiniGameSession | null
   monthlyEventSlot: MonthlyEventSlotState | null
   sideHustles: SideHustleState
+  employment: EmploymentState
+  livingProfile: LivingProfile
   monthlyPlan: MonthlyPlan | null
   monthlySettlements: MonthSettlement[]
   debtFreeChoiceId: string | null

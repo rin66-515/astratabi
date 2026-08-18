@@ -23,6 +23,16 @@ export function checkCondition(condition: EventCondition, context: EventContext)
       return compare(context.month, condition.operator, condition.value)
     case 'elapsedMonth':
       return compare(context.elapsedMonth, condition.operator, condition.value)
+    case 'foodLifestyle':
+      return context.livingProfile.foodLifestyle === condition.value
+    case 'smokingLevel':
+      return context.livingProfile.smokingLevel === condition.value
+    case 'foodLifestyleMonths':
+      return compare(
+        context.livingProfile.consecutiveFoodLifestyleMonths,
+        condition.operator,
+        condition.value,
+      )
     case 'sideHustle':
       return compare(
         context.sideHustles.routes[condition.routeId][condition.field],

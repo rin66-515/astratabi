@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
+import { createInitialSideHustleState, initialGameStats, initialLivingProfile } from '../data/initialState'
 import type { EventContext, GameEvent, MonthlyEventDefinition } from '../types/game'
 import { completeMonthlyEventSlot, completeMonthlyMiniGameSlot, selectMonthlyEventSlot } from './monthlyEventSlot'
 
@@ -10,6 +10,7 @@ const context: EventContext = {
   flags: [],
   completedEventIds: [],
   sideHustles: createInitialSideHustleState(),
+  livingProfile: { ...initialLivingProfile },
 }
 
 function event(id: string, weight = 1): GameEvent {

@@ -1,10 +1,9 @@
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
 import {
   EXTRA_PAYMENT_CASH_RESERVE_JPY,
-  fixedMonthlyExpenses,
-  FIXED_MONTHLY_EXPENSES_JPY,
   getMaximumExtraPaymentRmb,
 } from '../engine/monthSettlement'
+import { resolveLivingExpenses } from '../engine/livingCostResolver'
 import {
   experienceRequiredForNextLevel,
   sideHustleMonthlyActionProvider,
@@ -12,7 +11,7 @@ import {
   sideHustleRouteIds,
 } from '../engine/sideHustleResolver'
 import { canPerformMonthlyAction, MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
-import type { GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
+import type { FoodLifestyle, GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
 import { formatMoney, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
 
@@ -23,8 +22,17 @@ const expenseLabels = {
   food: { zh: '饮食', ja: '食費' },
   utilities: { zh: '水电', ja: '水道・光熱' },
   telecom: { zh: '通信', ja: '通信' },
-  transport_daily: { zh: '交通与日用品', ja: '交通・日用品' },
+  transport: { zh: '交通', ja: '交通' },
+  smoking: { zh: '烟草', ja: 'たばこ' },
+  other_basic: { zh: '其他基本支出', ja: 'その他基本支出' },
 } as const
+
+const foodLifestyleLabels: Record<FoodLifestyle, { zh: string; ja: string }> = {
+  survival: { zh: '极限省钱', ja: '最低限' },
+  frugal: { zh: '节省', ja: '節約' },
+  balanced: { zh: '正常吃', ja: 'バランス' },
+  comfortable: { zh: '吃得舒服', ja: 'ゆとり' },
+}
 
 function monthLabel(year: number, month: number, language: Language) {
   return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'ja-JP', {
@@ -44,6 +52,7 @@ export function MonthlyCyclePage({
   plan,
   onPerformAction,
   onSetExtraPayment,
+  onSetFoodLifestyle,
   onComplete,
 }: {
   language: Language
@@ -56,6 +65,7 @@ export function MonthlyCyclePage({
   plan: MonthlyPlan
   onPerformAction: (actionId: string) => void
   onSetExtraPayment: (amountRmb: number) => void
+  onSetFoodLifestyle: (foodLifestyle: FoodLifestyle) => void
   onComplete: () => void
 }) {
   const actions = getAvailableMonthlyActions({
@@ -67,6 +77,8 @@ export function MonthlyCyclePage({
   const coreActions = actions.filter((action) => action.source === 'core')
   const maximumExtraPaymentRmb = getMaximumExtraPaymentRmb(stats, plan)
   const rateJpyPerRmb = plan.exchangeRate > 0 ? 1 / plan.exchangeRate : 0
+  const livingExpenses = resolveLivingExpenses(plan.foodLifestyle, plan.smokingLevel, plan.extraSmokingJpy)
+  const livingExpensesJpy = livingExpenses.reduce((total, expense) => total + expense.amountJpy, 0)
 
   return <section className={styles.monthCyclePage}>
     <header className={styles.monthCycleHeader}>
@@ -84,8 +96,8 @@ export function MonthlyCyclePage({
     <dl className={styles.monthCycleLedger}>
       <div><dt>{language === 'zh' ? '人民币负债' : '人民元建て負債'}</dt><dd>{formatMoney(stats.debtRmb, 'RMB', language)}</dd></div>
       <div><dt>{language === 'zh' ? '日元现金' : '円現金'}</dt><dd>{formatMoney(stats.cashJpy, 'JPY', language)}</dd></div>
-      <div><dt>{language === 'zh' ? '本月工资' : '今月給与'}</dt><dd>{formatMoney(stats.salaryJpy, 'JPY', language)}</dd></div>
-      <div><dt>{language === 'zh' ? '固定支出' : '固定支出'}</dt><dd>{formatMoney(FIXED_MONTHLY_EXPENSES_JPY, 'JPY', language)}</dd></div>
+      <div><dt>{language === 'zh' ? '本月工资' : '今月給与'}</dt><dd>{formatMoney(plan.income.totalIncomeJpy, 'JPY', language)}</dd></div>
+      <div><dt>{language === 'zh' ? '生活支出' : '生活支出'}</dt><dd>{formatMoney(livingExpensesJpy, 'JPY', language)}</dd></div>
       <div><dt>{language === 'zh' ? '身体' : '身体'}</dt><dd>{statusLabel('health', stats.health, language)}</dd></div>
       <div><dt>{language === 'zh' ? '精神' : '精神'}</dt><dd>{statusLabel('mental', stats.mental, language)}</dd></div>
     </dl>
@@ -129,8 +141,20 @@ export function MonthlyCyclePage({
           </div>
           <small>1 RMB ≈ {rateJpyPerRmb.toFixed(2)} JPY</small>
         </div>
+        <div className={styles.lifestyleBlock}>
+          <h3>{language === 'zh' ? '本月怎么吃' : '今月の食生活'}</h3>
+          <p>{language === 'zh' ? '默认继承上月，可在月结前调整。' : '前月の選択を引き継ぎ、精算前まで変更できる。'}</p>
+          <div className={styles.lifestyleOptions}>
+            {(Object.keys(foodLifestyleLabels) as FoodLifestyle[]).map((lifestyle) => <button
+              type="button"
+              key={lifestyle}
+              aria-pressed={plan.foodLifestyle === lifestyle}
+              onClick={() => onSetFoodLifestyle(lifestyle)}
+            >{foodLifestyleLabels[lifestyle][language]}</button>)}
+          </div>
+        </div>
         <ul className={styles.fixedExpenseList}>
-          {fixedMonthlyExpenses.map((expense) => <li key={expense.id}>
+          {livingExpenses.map((expense) => <li key={expense.id}>
             <span>{expenseLabels[expense.id][language]}</span>
             <strong>{formatMoney(expense.amountJpy, 'JPY', language)}</strong>
           </li>)}

@@ -503,6 +503,154 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
     },
     weightRules: [{ conditions: [{ type: 'sideHustle', routeId: 'own_product', field: 'level', operator: 'gte', value: 2 }], multiplier: 2 }],
   },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-work-mentor-assignment',
+      title: text('“新人就麻烦你带一下了”', '「新人のこと、お願いしてもいい？」'),
+      category: 'work',
+      text: [
+        text('上司把下个月的体制图放到你面前。你的名字旁边，多了一条连向新人的线。', '上司が来月の体制図を見せた。自分の名前から、新人へ一本の線が伸びている。'),
+        text('他说会有一点津贴。没有说的是，问题也会先来找你。', '少し手当がつくという。質問が最初に自分へ来ることまでは、言わなかった。'),
+      ],
+      weight: 0.8,
+      conditions: [
+        { type: 'elapsedMonth', operator: 'gte', value: 6 },
+        { type: 'stat', stat: 'workTrust', operator: 'gte', value: 8 },
+        { type: 'flag', flag: 'mentoring_junior_active', present: false },
+      ],
+      options: [
+        {
+          id: 'accept-with-scope',
+          tone: 'realistic',
+          label: text('接受，但先确认带教范围和自己的原任务', '引き受ける前に、指導範囲と自分の既存タスクを確認する'),
+          effects: { workTrust: 3, workplace: 2, stress: 3, boundary: 1 },
+          addFlags: ['mentoring_junior_active'],
+          response: [text('工资会多一点。日历上，也多出了几块不再完全属于自己的时间。', '給料は少し増える。予定表には、自分だけのものではない時間も増えた。')],
+        },
+        {
+          id: 'ask-to-reconsider',
+          tone: 'realistic',
+          label: text('说明当前负荷，请上司重新安排', '現在の負荷を説明し、体制を再検討してもらう'),
+          effects: { boundary: 3, stress: -1, workTrust: -1 },
+          response: [text('上司没有立刻答应，也没有再说“顺便”。至少这次，工作量被放到了桌面上。', '上司はすぐには答えなかった。それでも今回は、仕事量が机の上に置かれた。')],
+        },
+      ],
+    },
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-life-stress-smoking',
+      title: text('下午的第二包', '午後の二箱目'),
+      category: 'life',
+      text: [
+        text('今天会议很多。下午，你又走进了楼下的便利店。', '今日は会議が多かった。午後、また階下のコンビニへ入った。'),
+        text('烟盒拿在手里时，脑子确实安静了一小会儿。', '箱を手にした時、頭の中は確かに少し静かになった。'),
+      ],
+      weight: 0.6,
+      conditions: [
+        { type: 'elapsedMonth', operator: 'gte', value: 3 },
+        { type: 'stat', stat: 'stress', operator: 'gte', value: 65 },
+      ],
+      options: [
+        {
+          id: 'buy-one-more',
+          tone: 'realistic',
+          label: text('买下，先把下午撑过去', '買って、まず午後をやり過ごす'),
+          effects: { mental: 2, stress: -2, health: -1, recoveryDebt: 1 },
+          monthlyCost: { category: 'smoking', amountJpy: 700 },
+          addFlags: ['stress_smoking_happened'],
+          response: [text('眼前的问题没有消失。只是烟燃着的时候，它们暂时排成了一列。', '問題は消えなかった。ただ、煙がある間だけ、少し順番に並んだ。')],
+        },
+        {
+          id: 'walk-past-store',
+          tone: 'realistic',
+          label: text('绕过便利店，去外面走五分钟', 'コンビニを通り過ぎ、外を五分だけ歩く'),
+          effects: { stress: -1, boundary: 1 },
+          response: [text('没有变得轻松。至少回去时，手里没有多一只烟盒。', '楽にはならなかった。少なくとも、戻る手に箱は増えていなかった。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'stress', operator: 'gte', value: 80 }], multiplier: 2 },
+      { conditions: [{ type: 'stat', stat: 'mental', operator: 'lte', value: 35 }], multiplier: 1.7 },
+      { conditions: [{ type: 'smokingLevel', value: 'heavy' }], multiplier: 1.5 },
+    ],
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-life-chain-smoking-day',
+      title: text('没有数完的一天', '数えるのをやめた日'),
+      category: 'health',
+      text: [
+        text('今天大概抽了两包。不是因为特别想抽。', '今日はたぶん二箱吸った。特別に吸いたかったわけではない。'),
+        text('只是每次停下来的时候，手里总想有点什么。', 'ただ、立ち止まるたびに、手に何かが欲しかった。'),
+      ],
+      weight: 0.35,
+      conditions: [
+        { type: 'completedEvent', eventId: 'monthly-life-stress-smoking' },
+        { type: 'stat', stat: 'stress', operator: 'gte', value: 75 },
+      ],
+      options: [
+        {
+          id: 'stop-counting',
+          tone: 'realistic',
+          label: text('不再数了，把今天过完', '数えるのをやめ、今日を終える'),
+          effects: { mental: 1, stress: -2, health: -3, recoveryDebt: 3, lossOfControl: 1 },
+          monthlyCost: { category: 'smoking', amountJpy: 1_400 },
+          addFlags: ['chain_smoking_day_happened'],
+          response: [text('夜里嘴里发苦。你没有批评自己，只把空烟盒扔进了垃圾袋。', '夜、口の中が苦かった。自分を責めず、空き箱をゴミ袋へ入れた。')],
+        },
+        {
+          id: 'put-pack-away',
+          tone: 'realistic',
+          label: text('把剩下的烟收起来，今晚到此为止', '残りをしまい、今夜はここまでにする'),
+          effects: { stress: 1, boundary: 2, health: 1 },
+          response: [text('手空下来以后有些难受。那份难受，也只是今晚的一部分。', '手が空くと少し落ち着かなかった。それも、今夜の一部だった。')],
+        },
+      ],
+    },
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-health-food-warning',
+      title: text('胃先提出了意见', '胃が先に意見を出した'),
+      category: 'health',
+      text: [
+        text('早上醒来时，胃里有一阵说不清的钝痛。', '朝起きると、胃に説明しにくい鈍い痛みがあった。'),
+        text('它不证明泡面一定有罪，只提醒你，最近确实一直这样吃。', '即席麺が必ず悪いと証明するものではない。ただ、最近ずっと同じ食べ方だったことを知らせている。'),
+      ],
+      weight: 0.55,
+      conditions: [
+        { type: 'foodLifestyle', value: 'survival' },
+        { type: 'foodLifestyleMonths', operator: 'gte', value: 2 },
+        { type: 'stat', stat: 'recoveryDebt', operator: 'gte', value: 25 },
+      ],
+      options: [
+        {
+          id: 'adjust-food',
+          tone: 'realistic',
+          label: text('这周先正常吃几顿，观察身体', '今週は何度か普通に食べ、身体の様子を見る'),
+          effects: { cashJpy: -3_000, health: 2, mental: 1, lifePoverty: -1 },
+          response: [text('疼痛没有立刻消失。晚饭里至少出现了蔬菜和热汤。', '痛みはすぐ消えなかった。それでも夕食には、野菜と温かい汁物があった。')],
+        },
+        {
+          id: 'observe-one-day',
+          tone: 'realistic',
+          label: text('先观察一天，若持续就去看医生', '一日様子を見て、続くなら受診する'),
+          effects: { stress: 1, health: -1 },
+          response: [text('你把症状和时间记进手机。不是诊断，只是一条不会被忘掉的记录。', '症状と時刻をスマートフォンに記録した。診断ではない。ただ、忘れないための記録だ。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'stress', operator: 'gte', value: 70 }], multiplier: 1.8 },
+      { conditions: [{ type: 'foodLifestyleMonths', operator: 'gte', value: 4 }], multiplier: 2 },
+    ],
+  },
 ]
 
 export const monthlyEventMap = new Map(

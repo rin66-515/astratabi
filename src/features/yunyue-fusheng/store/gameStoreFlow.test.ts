@@ -291,6 +291,17 @@ describe('playable ending flow', () => {
         actionPointsGranted: 5,
         actionPointsRemaining: 0,
         exchangeRate: state.stats.exchangeRate,
+        income: {
+          baseSalaryJpy: state.employment.baseSalaryJpy,
+          roleAllowanceJpy: 0,
+          mentorAllowanceJpy: 0,
+          overtimeIncomeJpy: 0,
+          totalIncomeJpy: state.stats.salaryJpy,
+          raiseJpy: 0,
+        },
+        foodLifestyle: state.livingProfile.foodLifestyle,
+        smokingLevel: state.livingProfile.smokingLevel,
+        extraSmokingJpy: 0,
         selectedActions: [],
         extraPaymentRmb: 0,
       },
@@ -320,6 +331,17 @@ describe('playable ending flow', () => {
         actionPointsGranted: 6,
         actionPointsRemaining: 6,
         exchangeRate: state.stats.exchangeRate,
+        income: {
+          baseSalaryJpy: state.employment.baseSalaryJpy,
+          roleAllowanceJpy: 0,
+          mentorAllowanceJpy: 0,
+          overtimeIncomeJpy: 0,
+          totalIncomeJpy: state.stats.salaryJpy,
+          raiseJpy: 0,
+        },
+        foodLifestyle: state.livingProfile.foodLifestyle,
+        smokingLevel: state.livingProfile.smokingLevel,
+        extraSmokingJpy: 0,
         selectedActions: [],
         extraPaymentRmb: 0,
       },
@@ -352,6 +374,60 @@ describe('playable ending flow', () => {
 
     useGameStore.getState().enterNextMonth()
     expect(useGameStore.getState().monthlyPlan?.actionPointsGranted).toBe(2)
+    random.mockRestore()
+  })
+
+  it('persists the selected food lifestyle into the dynamic monthly settlement', () => {
+    useGameStore.setState({ screen: 'monthly-cycle', monthlyPlan: null })
+    useGameStore.getState().prepareMonth()
+    useGameStore.getState().setFoodLifestyle('comfortable')
+    expect(useGameStore.getState().monthlyPlan?.foodLifestyle).toBe('comfortable')
+
+    useGameStore.getState().completeMonth()
+    expect(useGameStore.getState().monthlySettlements.at(-1)).toMatchObject({
+      foodLifestyle: 'comfortable',
+      foodCostJpy: 90_000,
+    })
+    expect(useGameStore.getState().livingProfile.foodLifestyle).toBe('comfortable')
+  })
+
+  it('carries event-driven smoking cost into the same month settlement', () => {
+    const state = useGameStore.getState()
+    useGameStore.setState({ screen: 'monthly-cycle', monthlyPlan: null })
+    useGameStore.getState().prepareMonth()
+    useGameStore.setState({
+      screen: 'event',
+      currentEventId: 'monthly-life-stress-smoking',
+      monthlyEventSlot: {
+        elapsedMonth: 3,
+        kind: 'normal',
+        eventId: 'monthly-life-stress-smoking',
+        status: 'pending',
+        miniGame: null,
+      },
+      stats: { ...state.stats, stress: 75 },
+    })
+
+    useGameStore.getState().chooseOption('buy-one-more')
+    expect(useGameStore.getState().monthlyPlan?.extraSmokingJpy).toBe(700)
+    useGameStore.getState().advance()
+    useGameStore.getState().completeMonth()
+    expect(useGameStore.getState().monthlySettlements.at(-1)?.smokingCostJpy).toBe(16_700)
+  })
+
+  it('applies mentor allowance and the next-month AP trade-off', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.999999)
+    const state = useGameStore.getState()
+    useGameStore.setState({
+      screen: 'preview',
+      flags: ['mentoring_junior_active'],
+      progress: { ...state.progress, elapsedMonths: 6 },
+    })
+
+    useGameStore.getState().enterNextMonth()
+    expect(useGameStore.getState().employment.isMentoringJunior).toBe(true)
+    expect(useGameStore.getState().monthlyPlan?.income.mentorAllowanceJpy).toBe(8_000)
+    expect(useGameStore.getState().monthlyPlan?.actionPointsGranted).toBe(7)
     random.mockRestore()
   })
 })

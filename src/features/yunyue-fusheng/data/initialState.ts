@@ -1,4 +1,12 @@
-import type { GameSaveState, GameStats, Language, SideHustleState, VolumeProgress } from '../types/game'
+import type {
+  EmploymentState,
+  GameSaveState,
+  GameStats,
+  Language,
+  LivingProfile,
+  SideHustleState,
+  VolumeProgress,
+} from '../types/game'
 
 export const DEFAULT_STAGE_DEADLINE_MONTHS = 18
 
@@ -42,6 +50,22 @@ export const initialVolumeProgress: VolumeProgress = {
   finalEnding: null,
 }
 
+export const initialEmploymentState: EmploymentState = {
+  baseSalaryJpy: initialGameStats.salaryJpy,
+  roleAllowanceJpy: 0,
+  mentorAllowanceJpy: 0,
+  overtimeIncomeJpy: 0,
+  isMentoringJunior: false,
+  lastSalaryReviewMonth: 0,
+}
+
+export const initialLivingProfile: LivingProfile = {
+  foodLifestyle: 'frugal',
+  consecutiveFoodLifestyleMonths: 0,
+  smokingLevel: 'regular',
+  stressSmokingCount: 0,
+}
+
 export function createInitialSideHustleState(): SideHustleState {
   return {
     routes: {
@@ -71,6 +95,8 @@ export function createInitialGameSaveState(language: Language): GameSaveState {
     activeMiniGame: null,
     monthlyEventSlot: null,
     sideHustles: createInitialSideHustleState(),
+    employment: { ...initialEmploymentState },
+    livingProfile: { ...initialLivingProfile },
     monthlyPlan: null,
     monthlySettlements: [],
     debtFreeChoiceId: null,

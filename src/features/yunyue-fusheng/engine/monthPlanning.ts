@@ -1,4 +1,4 @@
-import type { GameStats, MonthlyPlan } from '../types/game'
+import type { FoodLifestyle, GameStats, IncomeBreakdown, MonthlyPlan, SmokingLevel } from '../types/game'
 
 export const MIN_MONTHLY_ACTION_POINTS = 5
 export const MAX_MONTHLY_ACTION_POINTS = 8
@@ -10,6 +10,12 @@ type MonthPlanContext = {
   elapsedMonth: number
   year: number
   month: number
+}
+
+export type MonthFinanceContext = {
+  income: IncomeBreakdown
+  foodLifestyle: FoodLifestyle
+  smokingLevel: SmokingLevel
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -25,6 +31,18 @@ export function createMonthlyPlan(
   context: MonthPlanContext,
   random: () => number = Math.random,
   actionPointModifier = 0,
+  finance: MonthFinanceContext = {
+    income: {
+      baseSalaryJpy: stats.salaryJpy,
+      roleAllowanceJpy: 0,
+      mentorAllowanceJpy: 0,
+      overtimeIncomeJpy: 0,
+      totalIncomeJpy: stats.salaryJpy,
+      raiseJpy: 0,
+    },
+    foodLifestyle: 'frugal',
+    smokingLevel: 'regular',
+  },
 ): MonthlyPlan {
   const actionPointRange = MAX_MONTHLY_ACTION_POINTS - MIN_MONTHLY_ACTION_POINTS + 1
   const baseActionPoints = MIN_MONTHLY_ACTION_POINTS
@@ -43,6 +61,10 @@ export function createMonthlyPlan(
     actionPointsGranted,
     actionPointsRemaining: actionPointsGranted,
     exchangeRate,
+    income: { ...finance.income },
+    foodLifestyle: finance.foodLifestyle,
+    smokingLevel: finance.smokingLevel,
+    extraSmokingJpy: 0,
     selectedActions: [],
     extraPaymentRmb: 0,
   }

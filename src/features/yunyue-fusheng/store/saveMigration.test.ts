@@ -32,6 +32,8 @@ describe('migrateGameSave', () => {
     expect(migrated.activeMiniGame).toBeNull()
     expect(migrated.monthlyEventSlot).toBeNull()
     expect(migrated.sideHustles.totalIncomeJpy).toBe(0)
+    expect(migrated.employment.baseSalaryJpy).toBe(initialGameStats.salaryJpy)
+    expect(migrated.livingProfile).toMatchObject({ foodLifestyle: 'frugal', smokingLevel: 'regular' })
     expect(migrated.monthlyPlan).toBeNull()
     expect(migrated.monthlySettlements).toEqual([])
     expect(migrated.debtFreeChoiceId).toBeNull()
@@ -117,6 +119,10 @@ describe('migrateGameSave', () => {
         month: 10,
         actionPointsGranted: 6,
         actionPointsSpent: 3,
+        fixedExpenses: [
+          { id: 'food', amountJpy: 42_000 },
+          { id: 'transport_daily', amountJpy: 13_000 },
+        ],
         actions: [],
       }],
     }, 7)
@@ -127,7 +133,10 @@ describe('migrateGameSave', () => {
       actionPointsOverdrawn: 0,
       negativeActionPointMonth: false,
       consequenceEffects: {},
+      foodCostJpy: 42_000,
     })
+    expect(migrated.monthlySettlements[0].fixedExpenses.map((expense) => expense.id))
+      .toEqual(['food', 'transport'])
   })
 
   it('preserves an in-progress v8 minigame deadline and answers', () => {
@@ -152,6 +161,40 @@ describe('migrateGameSave', () => {
       answers: { 'meeting-close': 'confirm-decision' },
       deadlineAt: '2026-08-18T00:00:12.000Z',
       result: null,
+    })
+    expect(migrated.employment.baseSalaryJpy).toBe(initialGameStats.salaryJpy)
+    expect(migrated.livingProfile.foodLifestyle).toBe('frugal')
+  })
+
+  it('preserves v9 employment, lifestyle and dynamic settlement details', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      employment: {
+        ...source.employment,
+        baseSalaryJpy: 270_000,
+        mentorAllowanceJpy: 8_000,
+        isMentoringJunior: true,
+        lastSalaryReviewMonth: 12,
+      },
+      livingProfile: {
+        ...source.livingProfile,
+        foodLifestyle: 'balanced',
+        consecutiveFoodLifestyleMonths: 3,
+        stressSmokingCount: 2,
+      },
+    }, 9)
+
+    expect(migrated.employment).toMatchObject({
+      baseSalaryJpy: 270_000,
+      mentorAllowanceJpy: 8_000,
+      isMentoringJunior: true,
+      lastSalaryReviewMonth: 12,
+    })
+    expect(migrated.livingProfile).toMatchObject({
+      foodLifestyle: 'balanced',
+      consecutiveFoodLifestyleMonths: 3,
+      stressSmokingCount: 2,
     })
   })
 })

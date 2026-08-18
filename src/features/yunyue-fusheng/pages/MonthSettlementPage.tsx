@@ -7,7 +7,9 @@ const expenseLabels = {
   food: { zh: '饮食', ja: '食費' },
   utilities: { zh: '水电', ja: '水道・光熱' },
   telecom: { zh: '通信', ja: '通信' },
-  transport_daily: { zh: '交通与日用品', ja: '交通・日用品' },
+  transport: { zh: '交通', ja: '交通' },
+  smoking: { zh: '烟草', ja: 'たばこ' },
+  other_basic: { zh: '其他基本支出', ja: 'その他基本支出' },
 } as const
 
 export function MonthSettlementPage({ language, settlement, onContinue }: {
@@ -29,10 +31,20 @@ export function MonthSettlementPage({ language, settlement, onContinue }: {
           <div><dt>{language === 'zh' ? '月初现金' : '月初現金'}</dt><dd>{formatMoney(settlement.cashJpyBefore, 'JPY', language)}</dd></div>
           <div><dt>{language === 'zh' ? '副业收入' : '副業収入'}</dt><dd className={styles.positiveAmount}>+{formatMoney(settlement.sideHustleIncomeJpy, 'JPY', language)}</dd></div>
           <div><dt>{language === 'zh' ? '工资到账' : '給与入金'}</dt><dd className={styles.positiveAmount}>+{formatMoney(settlement.salaryJpy, 'JPY', language)}</dd></div>
-          {settlement.fixedExpenses.map((expense) => <div key={expense.id}><dt>{expenseLabels[expense.id][language]}</dt><dd>−{formatMoney(expense.amountJpy, 'JPY', language)}</dd></div>)}
+          <div><dt>{language === 'zh' ? '生活支出' : '生活支出'}</dt><dd>−{formatMoney(settlement.fixedExpensesJpy, 'JPY', language)}</dd></div>
           <div><dt>{language === 'zh' ? '还款换汇' : '返済用両替'}</dt><dd>−{formatMoney(settlement.paymentJpy, 'JPY', language)}</dd></div>
           <div className={styles.settlementTotal}><dt>{language === 'zh' ? '月末现金' : '月末現金'}</dt><dd>{formatMoney(settlement.cashJpyAfter, 'JPY', language)}</dd></div>
         </dl>
+        <details className={styles.settlementDetails}>
+          <summary>{language === 'zh' ? '查看工资与生活支出明细' : '給与・生活支出の内訳を見る'}</summary>
+          <dl>
+            <div><dt>{language === 'zh' ? '基础工资' : '基本給'}</dt><dd>+{formatMoney(settlement.income.baseSalaryJpy, 'JPY', language)}</dd></div>
+            <div><dt>{language === 'zh' ? '职责津贴' : '役割手当'}</dt><dd>+{formatMoney(settlement.income.roleAllowanceJpy, 'JPY', language)}</dd></div>
+            <div><dt>{language === 'zh' ? '带新人津贴' : '指導手当'}</dt><dd>+{formatMoney(settlement.income.mentorAllowanceJpy, 'JPY', language)}</dd></div>
+            <div><dt>{language === 'zh' ? '加班及其他收入' : '残業・その他収入'}</dt><dd>+{formatMoney(settlement.income.overtimeIncomeJpy, 'JPY', language)}</dd></div>
+            {settlement.fixedExpenses.map((expense) => <div key={expense.id}><dt>{expenseLabels[expense.id][language]}</dt><dd>−{formatMoney(expense.amountJpy, 'JPY', language)}</dd></div>)}
+          </dl>
+        </details>
       </section>
 
       <section>

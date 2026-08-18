@@ -1,17 +1,23 @@
 import {
   createInitialGameSaveState,
   createInitialSideHustleState,
+  initialEmploymentState,
   initialGameStats,
+  initialLivingProfile,
   initialVolumeProgress,
 } from '../data/initialState'
 import { sideHustleRouteIds } from '../engine/sideHustleResolver'
 import { MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
 import type {
   GameEffects,
+  EmploymentState,
+  FoodLifestyle,
   GameSaveState,
   GameScreen,
   GameStats,
+  FixedExpenseItem,
   Language,
+  LivingProfile,
   MonthSettlement,
   MiniGameResult,
   MiniGameSession,
@@ -23,6 +29,7 @@ import type {
   SideHustleActionOutcome,
   SideHustleRouteId,
   SideHustleState,
+  SmokingLevel,
   StatKey,
   VolumeProgress,
 } from '../types/game'
@@ -43,6 +50,36 @@ function numberArray(value: unknown): number[] {
 
 function finiteNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function foodLifestyleOf(value: unknown): FoodLifestyle {
+  return value === 'survival' || value === 'balanced' || value === 'comfortable' ? value : 'frugal'
+}
+
+function smokingLevelOf(value: unknown): SmokingLevel {
+  return value === 'none' || value === 'light' || value === 'heavy' ? value : 'regular'
+}
+
+function migrateEmployment(value: unknown, legacySalaryJpy: number): EmploymentState {
+  if (!isRecord(value)) return { ...initialEmploymentState, baseSalaryJpy: legacySalaryJpy }
+  return {
+    baseSalaryJpy: Math.max(0, finiteNumber(value.baseSalaryJpy, legacySalaryJpy)),
+    roleAllowanceJpy: Math.max(0, finiteNumber(value.roleAllowanceJpy, 0)),
+    mentorAllowanceJpy: Math.max(0, finiteNumber(value.mentorAllowanceJpy, 0)),
+    overtimeIncomeJpy: Math.max(0, finiteNumber(value.overtimeIncomeJpy, 0)),
+    isMentoringJunior: value.isMentoringJunior === true,
+    lastSalaryReviewMonth: Math.max(0, Math.floor(finiteNumber(value.lastSalaryReviewMonth, 0))),
+  }
+}
+
+function migrateLivingProfile(value: unknown): LivingProfile {
+  if (!isRecord(value)) return { ...initialLivingProfile }
+  return {
+    foodLifestyle: foodLifestyleOf(value.foodLifestyle),
+    consecutiveFoodLifestyleMonths: Math.max(0, Math.floor(finiteNumber(value.consecutiveFoodLifestyleMonths, 0))),
+    smokingLevel: smokingLevelOf(value.smokingLevel),
+    stressSmokingCount: Math.max(0, Math.floor(finiteNumber(value.stressSmokingCount, 0))),
+  }
 }
 
 function migrateStats(value: unknown): GameStats {
@@ -238,7 +275,23 @@ function migrateActionSelection(value: unknown): MonthlyActionSelection | null {
   }
 }
 
-function migrateMonthlyPlan(value: unknown, fallbackCashJpy: number): MonthlyPlan | null {
+function migrateFixedExpenses(value: unknown): FixedExpenseItem[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): FixedExpenseItem[] => {
+    if (!isRecord(entry)) return []
+    const id = entry.id === 'transport_daily' ? 'transport' : entry.id
+    if (id !== 'rent' && id !== 'food' && id !== 'utilities' && id !== 'telecom'
+      && id !== 'transport' && id !== 'smoking' && id !== 'other_basic') return []
+    return [{ id, amountJpy: Math.max(0, finiteNumber(entry.amountJpy, 0)) }]
+  })
+}
+
+function migrateMonthlyPlan(
+  value: unknown,
+  fallbackCashJpy: number,
+  fallbackSalaryJpy: number,
+  livingProfile: LivingProfile,
+): MonthlyPlan | null {
   if (!isRecord(value)) return null
   const selectedActions = Array.isArray(value.selectedActions)
     ? value.selectedActions.map(migrateActionSelection).filter((action): action is MonthlyActionSelection => action !== null)
@@ -255,6 +308,26 @@ function migrateMonthlyPlan(value: unknown, fallbackCashJpy: number): MonthlyPla
       Math.max(MONTHLY_AP_OVERDRAFT_LIMIT, finiteNumber(value.actionPointsRemaining, granted)),
     ),
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
+    income: isRecord(value.income)
+      ? {
+          baseSalaryJpy: Math.max(0, finiteNumber(value.income.baseSalaryJpy, fallbackSalaryJpy)),
+          roleAllowanceJpy: Math.max(0, finiteNumber(value.income.roleAllowanceJpy, 0)),
+          mentorAllowanceJpy: Math.max(0, finiteNumber(value.income.mentorAllowanceJpy, 0)),
+          overtimeIncomeJpy: Math.max(0, finiteNumber(value.income.overtimeIncomeJpy, 0)),
+          totalIncomeJpy: Math.max(0, finiteNumber(value.income.totalIncomeJpy, fallbackSalaryJpy)),
+          raiseJpy: Math.max(0, finiteNumber(value.income.raiseJpy, 0)),
+        }
+      : {
+          baseSalaryJpy: fallbackSalaryJpy,
+          roleAllowanceJpy: 0,
+          mentorAllowanceJpy: 0,
+          overtimeIncomeJpy: 0,
+          totalIncomeJpy: fallbackSalaryJpy,
+          raiseJpy: 0,
+        },
+    foodLifestyle: foodLifestyleOf(value.foodLifestyle ?? livingProfile.foodLifestyle),
+    smokingLevel: smokingLevelOf(value.smokingLevel ?? livingProfile.smokingLevel),
+    extraSmokingJpy: Math.max(0, finiteNumber(value.extraSmokingJpy, 0)),
     selectedActions,
     extraPaymentRmb: Math.max(0, finiteNumber(value.extraPaymentRmb, 0)),
   }
@@ -268,6 +341,7 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
   const paymentRmb = Math.max(0, finiteNumber(value.paymentRmb, 0))
   const actionPointsGranted = Math.max(0, finiteNumber(value.actionPointsGranted, 0))
   const actionPointsSpent = Math.max(0, finiteNumber(value.actionPointsSpent, 0))
+  const fixedExpenses = migrateFixedExpenses(value.fixedExpenses)
   return {
     elapsedMonth: Math.max(1, finiteNumber(value.elapsedMonth, 1)),
     year: finiteNumber(value.year, 2024),
@@ -283,12 +357,38 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
     ),
     negativeActionPointMonth: value.negativeActionPointMonth === true,
     consequenceEffects: isRecord(value.consequenceEffects) ? value.consequenceEffects as GameEffects : {},
+    livingEffects: isRecord(value.livingEffects) ? value.livingEffects as GameEffects : {},
     exchangeRate: Math.max(0, finiteNumber(value.exchangeRate, initialGameStats.exchangeRate)),
     salaryJpy: Math.max(0, finiteNumber(value.salaryJpy, 0)),
+    income: isRecord(value.income)
+      ? {
+          baseSalaryJpy: Math.max(0, finiteNumber(value.income.baseSalaryJpy, finiteNumber(value.salaryJpy, 0))),
+          roleAllowanceJpy: Math.max(0, finiteNumber(value.income.roleAllowanceJpy, 0)),
+          mentorAllowanceJpy: Math.max(0, finiteNumber(value.income.mentorAllowanceJpy, 0)),
+          overtimeIncomeJpy: Math.max(0, finiteNumber(value.income.overtimeIncomeJpy, 0)),
+          totalIncomeJpy: Math.max(0, finiteNumber(value.income.totalIncomeJpy, finiteNumber(value.salaryJpy, 0))),
+          raiseJpy: Math.max(0, finiteNumber(value.income.raiseJpy, 0)),
+        }
+      : {
+          baseSalaryJpy: Math.max(0, finiteNumber(value.salaryJpy, 0)),
+          roleAllowanceJpy: 0,
+          mentorAllowanceJpy: 0,
+          overtimeIncomeJpy: 0,
+          totalIncomeJpy: Math.max(0, finiteNumber(value.salaryJpy, 0)),
+          raiseJpy: 0,
+        },
     sideHustleIncomeJpy: Math.max(0, finiteNumber(value.sideHustleIncomeJpy, 0)),
-    fixedExpenses: Array.isArray(value.fixedExpenses)
-      ? value.fixedExpenses as MonthSettlement['fixedExpenses']
-      : [],
+    foodLifestyle: foodLifestyleOf(value.foodLifestyle),
+    smokingLevel: smokingLevelOf(value.smokingLevel),
+    foodCostJpy: Math.max(0, finiteNumber(
+      value.foodCostJpy,
+      fixedExpenses.find((expense) => expense.id === 'food')?.amountJpy ?? 0,
+    )),
+    smokingCostJpy: Math.max(0, finiteNumber(
+      value.smokingCostJpy,
+      fixedExpenses.find((expense) => expense.id === 'smoking')?.amountJpy ?? 0,
+    )),
+    fixedExpenses,
     fixedExpensesJpy: Math.max(0, finiteNumber(value.fixedExpensesJpy, 0)),
     interestRmb: Math.max(0, finiteNumber(value.interestRmb, 0)),
     minimumPaymentRmb: Math.max(0, finiteNumber(value.minimumPaymentRmb, paymentRmb)),
@@ -308,6 +408,8 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
   const language = languageOf(persistedState.language)
   const fallback = createInitialGameSaveState(language)
   const stats = migrateStats(persistedState.stats)
+  const employment = migrateEmployment(persistedState.employment, stats.salaryJpy)
+  const livingProfile = migrateLivingProfile(persistedState.livingProfile)
   const storedScreen = screenOf(persistedState.screen)
   const activeMiniGame = migrateMiniGameSession(persistedState.activeMiniGame)
   const migratedMonthlyEventSlot = migrateMonthlyEventSlot(persistedState.monthlyEventSlot)
@@ -330,7 +432,9 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
       ? { ...migratedMonthlyEventSlot, status: 'completed' }
       : migratedMonthlyEventSlot,
     sideHustles: migrateSideHustles(persistedState.sideHustles),
-    monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan, stats.cashJpy),
+    employment,
+    livingProfile,
+    monthlyPlan: migrateMonthlyPlan(persistedState.monthlyPlan, stats.cashJpy, stats.salaryJpy, livingProfile),
     monthlySettlements: Array.isArray(persistedState.monthlySettlements)
       ? persistedState.monthlySettlements.map(migrateSettlement).filter((settlement): settlement is MonthSettlement => settlement !== null)
       : [],

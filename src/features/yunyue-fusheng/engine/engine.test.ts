@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { firstMonthEvents } from '../data/events/firstMonth'
-import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
+import { createInitialSideHustleState, initialGameStats, initialLivingProfile } from '../data/initialState'
 import type { EventContext, GameEvent } from '../types/game'
 import { applyEffects } from './applyEffects'
 import { checkCondition } from './checkCondition'
@@ -14,6 +14,7 @@ function context(overrides: Partial<EventContext> = {}): EventContext {
     flags: [],
     completedEventIds: [],
     sideHustles: createInitialSideHustleState(),
+    livingProfile: { ...initialLivingProfile },
     ...overrides,
   }
 }

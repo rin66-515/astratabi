@@ -12,6 +12,7 @@ import { resolveFinalEnding } from '../engine/endingResolver'
 import { pickNextStoryEvent } from '../engine/eventSelection'
 import { resolveMonthTransition } from '../engine/monthResolver'
 import { createMonthlyPlan } from '../engine/monthPlanning'
+import { incomeBreakdown, resolveEmploymentMonth } from '../engine/incomeResolver'
 import { getMaximumExtraPaymentRmb, settleMonth } from '../engine/monthSettlement'
 import {
   completeMonthlyEventSlot,
@@ -38,6 +39,7 @@ import type {
   GameStats,
   Language,
   MonthlyPlan,
+  FoodLifestyle,
 } from '../types/game'
 import { trackEvent } from '../utils/trackEvent'
 import { migrateGameSave } from './saveMigration'
@@ -55,6 +57,7 @@ type GameActions = {
   prepareMonth: () => void
   performMonthlyAction: (actionId: string) => void
   setExtraPayment: (amountRmb: number) => void
+  setFoodLifestyle: (foodLifestyle: FoodLifestyle) => void
   completeMonth: () => void
   continueAfterMonthSettlement: () => void
   completeAnnualReport: () => void
@@ -86,6 +89,7 @@ function contextOf(state: GameSaveState, stats = state.stats, flags = state.flag
     flags,
     completedEventIds: state.completedEventIds,
     sideHustles: state.sideHustles,
+    livingProfile: state.livingProfile,
   }
 }
 
@@ -102,23 +106,38 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
   const elapsedMonths = state.progress.elapsedMonths + 1
   const previousSettlement = state.monthlySettlements.at(-1) ?? null
   const openingRecovery = applyMonthOpeningRecovery(state.stats, previousSettlement)
+  const employmentResolution = resolveEmploymentMonth(
+    state.employment,
+    openingRecovery.stats,
+    elapsedMonths,
+    state.flags,
+  )
+  const openingStats = {
+    ...openingRecovery.stats,
+    salaryJpy: employmentResolution.income.totalIncomeJpy,
+  }
   const sideHustles = unlockEligibleSideHustles(state.sideHustles, {
     elapsedMonth: elapsedMonths,
-    stats: openingRecovery.stats,
+    stats: openingStats,
     flags: state.flags,
     sideHustles: state.sideHustles,
   })
-  const monthlyPlan = createMonthlyPlan(openingRecovery.stats, {
+  const monthlyPlan = createMonthlyPlan(openingStats, {
     ...calendar,
     elapsedMonth: elapsedMonths,
-  }, Math.random, openingRecovery.actionPointModifier)
+  }, Math.random, openingRecovery.actionPointModifier + employmentResolution.actionPointModifier, {
+    income: employmentResolution.income,
+    foodLifestyle: state.livingProfile.foodLifestyle,
+    smokingLevel: state.livingProfile.smokingLevel,
+  })
   const monthlyEventSlot = selectMonthlyEventSlot(monthlyEventDefinitions, {
     month: calendar.month,
     elapsedMonth: elapsedMonths,
-    stats: openingRecovery.stats,
+    stats: openingStats,
     flags: state.flags,
     completedEventIds: state.completedEventIds,
     sideHustles,
+    livingProfile: state.livingProfile,
   }, elapsedMonths)
   return {
     ...calendar,
@@ -127,7 +146,8 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
     resolution: null,
     activeMiniGame: null,
     monthlyEventSlot,
-    stats: { ...openingRecovery.stats, actionPoints: monthlyPlan.actionPointsGranted },
+    stats: { ...openingStats, actionPoints: monthlyPlan.actionPointsGranted },
+    employment: employmentResolution.employment,
     sideHustles,
     monthlyPlan,
     progress: {
@@ -144,6 +164,10 @@ function currentMonthlyPlan(state: GameSaveState): MonthlyPlan {
     elapsedMonth: state.progress.elapsedMonths,
     year: state.year,
     month: state.month,
+  }, Math.random, 0, {
+    income: incomeBreakdown(state.employment),
+    foodLifestyle: state.livingProfile.foodLifestyle,
+    smokingLevel: state.livingProfile.smokingLevel,
   })
 }
 
@@ -246,11 +270,21 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
 
     const completedEventIds = addUnique(state.completedEventIds, [event.id])
     const history = [...state.history, { eventId: event.id, optionId, chosenAt: new Date().toISOString() }]
+    const monthlyPlan = state.monthlyPlan && option.monthlyCost?.category === 'smoking'
+      ? {
+          ...state.monthlyPlan,
+          extraSmokingJpy: state.monthlyPlan.extraSmokingJpy + Math.max(0, option.monthlyCost.amountJpy),
+        }
+      : state.monthlyPlan
     set({
       stats: nextStats,
       flags: nextFlags,
       completedEventIds,
       history,
+      monthlyPlan,
+      livingProfile: option.monthlyCost?.category === 'smoking'
+        ? { ...state.livingProfile, stressSmokingCount: state.livingProfile.stressSmokingCount + 1 }
+        : state.livingProfile,
       resolution: { eventId: event.id, optionId, effects: combinedEffects, response },
     })
     trackEvent('event_choice', { eventId: event.id, optionId })
@@ -299,6 +333,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
       flags: state.flags,
       completedEventIds: state.completedEventIds,
       sideHustles: state.sideHustles,
+      livingProfile: state.livingProfile,
     }
     const nextEvent = pickNextStoryEvent(firstMonthEvents, nextContext)
     set({ currentEventId: nextEvent?.id ?? null, resolution: null })
@@ -315,16 +350,32 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   prepareMonth: () => {
     const state = get()
     if (state.screen !== 'monthly-cycle' || state.monthlyPlan) return
-    const monthlyPlan = currentMonthlyPlan(state)
+    const employmentResolution = resolveEmploymentMonth(
+      state.employment,
+      state.stats,
+      state.progress.elapsedMonths,
+      state.flags,
+    )
+    const stats = { ...state.stats, salaryJpy: employmentResolution.income.totalIncomeJpy }
+    const monthlyPlan = createMonthlyPlan(stats, {
+      elapsedMonth: state.progress.elapsedMonths,
+      year: state.year,
+      month: state.month,
+    }, Math.random, employmentResolution.actionPointModifier, {
+      income: employmentResolution.income,
+      foodLifestyle: state.livingProfile.foodLifestyle,
+      smokingLevel: state.livingProfile.smokingLevel,
+    })
     const sideHustles = unlockEligibleSideHustles(state.sideHustles, {
       elapsedMonth: state.progress.elapsedMonths,
-      stats: state.stats,
+      stats,
       flags: state.flags,
       sideHustles: state.sideHustles,
     })
     set({
       monthlyPlan,
-      stats: { ...state.stats, actionPoints: monthlyPlan.actionPointsGranted },
+      employment: employmentResolution.employment,
+      stats: { ...stats, actionPoints: monthlyPlan.actionPointsGranted },
       sideHustles,
     })
   },
@@ -394,6 +445,19 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     })
   },
 
+  setFoodLifestyle: (foodLifestyle) => {
+    const state = get()
+    if (state.screen !== 'monthly-cycle' || !state.monthlyPlan) return
+    const monthlyPlan = { ...state.monthlyPlan, foodLifestyle }
+    const maximum = getMaximumExtraPaymentRmb(state.stats, monthlyPlan)
+    set({
+      monthlyPlan: {
+        ...monthlyPlan,
+        extraPaymentRmb: Math.min(monthlyPlan.extraPaymentRmb, maximum),
+      },
+    })
+  },
+
   completeMonth: () => {
     const state = get()
     if (state.screen !== 'monthly-cycle') return
@@ -402,7 +466,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
       elapsedMonth: state.progress.elapsedMonths,
       year: state.year,
       month: state.month,
-    }, monthlyPlan)
+    }, monthlyPlan, state.livingProfile)
     const progress = {
       ...state.progress,
       debtClearedMonth: result.stats.debtRmb <= 0 && state.progress.debtClearedMonth === null
@@ -412,11 +476,13 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     const settledState: GameSaveState = {
       ...state,
       stats: result.stats,
+      livingProfile: result.livingProfile,
       monthlySettlements: [...state.monthlySettlements, result.settlement],
       progress,
     }
     set({
       stats: settledState.stats,
+      livingProfile: settledState.livingProfile,
       monthlySettlements: settledState.monthlySettlements,
       progress: settledState.progress,
       monthlyPlan: null,
@@ -571,7 +637,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   },
 }), {
   name: SAVE_KEY,
-  version: 8,
+  version: 9,
   storage: createJSONStorage(() => window.localStorage),
   migrate: migrateGameSave,
   partialize: (state): GameSaveState => ({
@@ -590,6 +656,8 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     activeMiniGame: state.activeMiniGame,
     monthlyEventSlot: state.monthlyEventSlot,
     sideHustles: state.sideHustles,
+    employment: state.employment,
+    livingProfile: state.livingProfile,
     monthlyPlan: state.monthlyPlan,
     monthlySettlements: state.monthlySettlements,
     debtFreeChoiceId: state.debtFreeChoiceId,

@@ -7,7 +7,9 @@ describe('side hustle balance simulation', () => {
     const second = simulateBalanceRun('reference_no_extra', 24, 12345)
 
     expect(first).toEqual(second)
-    expect(first.debtClearedMonth).toBe(23)
+    expect(first.debtClearedMonth).toBe(24)
+    expect(first.debtClearedMonth).toBeGreaterThanOrEqual(20)
+    expect(first.debtClearedMonth).toBeLessThanOrEqual(26)
     expect(first.cumulativeSideIncomeJpy).toBe(0)
     expect(first.averageActionPointsSpent).toBe(0)
     expect(first.eventsTriggered).toBeGreaterThan(0)
@@ -40,6 +42,30 @@ describe('side hustle balance simulation', () => {
     expect(overwork.negativeActionPointMonths).toBeGreaterThan(0)
     expect(regular.negativeActionPointMonths).toBe(0)
     expect(overwork.recoveryDebt).toBeGreaterThan(regular.recoveryDebt)
+  })
+
+  it('distinguishes lifestyle cost and health trade-offs', () => {
+    const survival = simulateBalanceRun('living_survival', 18, 321)
+    const balanced = simulateBalanceRun('living_balanced', 18, 321)
+    const comfortable = simulateBalanceRun('living_comfortable', 18, 321)
+    const smoker = simulateBalanceRun('stress_smoker', 18, 321)
+
+    expect(survival.foodCostJpy).toBeLessThan(balanced.foodCostJpy)
+    expect(balanced.foodCostJpy).toBeLessThan(comfortable.foodCostJpy)
+    expect(survival.lifePoverty).toBeGreaterThan(balanced.lifePoverty)
+    expect(smoker.smokingCostJpy).toBeGreaterThan(balanced.smokingCostJpy)
+    expect(smoker.health).toBeLessThan(balanced.health)
+  })
+
+  it('reflects salary growth and mentor allowance without changing side-hustle income', () => {
+    const salaryOnly = simulateBalanceRun('salary_only', 18, 654)
+    const growth = simulateBalanceRun('salary_growth', 18, 654)
+    const mentor = simulateBalanceRun('mentor_route', 18, 654)
+
+    expect(growth.totalIncomeJpy).toBeGreaterThan(salaryOnly.totalIncomeJpy)
+    expect(mentor.totalIncomeJpy).toBeGreaterThan(salaryOnly.totalIncomeJpy)
+    expect(growth.cumulativeSideIncomeJpy).toBe(0)
+    expect(mentor.cumulativeSideIncomeJpy).toBe(0)
   })
 
 })
