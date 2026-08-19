@@ -197,4 +197,46 @@ describe('migrateGameSave', () => {
       stressSmokingCount: 2,
     })
   })
+
+  it('maps a legacy unlocked route to v10 without relocking it', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      eventOccurrences: { 'monthly-finance-extra-income-thought': [2, 5] },
+      sideHustles: {
+        totalIncomeJpy: 12_000,
+        routes: {
+          ...source.sideHustles.routes,
+          freelance: {
+            unlockedAtMonth: 3,
+            level: 1,
+            experience: 2,
+            totalIncomeJpy: 12_000,
+            completedActions: 1,
+          },
+        },
+      },
+      monthlyPlan: {
+        elapsedMonth: 5,
+        year: 2024,
+        month: 12,
+        openingCashJpy: 100_000,
+        actionPointsGranted: 6,
+        actionPointsRemaining: 4,
+        exchangeRate: 0.048,
+        selectedActions: [],
+        extraPaymentRmb: 0,
+      },
+    }, 9)
+
+    expect(migrated.sideHustles.routes.freelance).toMatchObject({
+      state: 'unlocked',
+      discoveredAtMonth: 3,
+      unlockedAtMonth: 3,
+      level: 1,
+    })
+    expect(migrated.sideHustles.discovery.state).toBe('discovered')
+    expect(migrated.eventOccurrences['monthly-finance-extra-income-thought']).toEqual([2, 5])
+    expect(migrated.monthlyPlan?.actionAvailability).toEqual([])
+  })
 })

@@ -33,6 +33,10 @@ export function checkCondition(condition: EventCondition, context: EventContext)
         condition.operator,
         condition.value,
       )
+    case 'featureUnlock':
+      return (condition.featureId === 'side_hustle'
+        ? context.sideHustles.discovery
+        : context.sideHustles.routes[condition.featureId])?.state === condition.state
     case 'sideHustle':
       return compare(
         context.sideHustles.routes[condition.routeId][condition.field],

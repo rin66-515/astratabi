@@ -11,6 +11,7 @@ import {
   sideHustleRouteIds,
 } from '../engine/sideHustleResolver'
 import { canPerformMonthlyAction, MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
+import { isMonthlyActionAvailable } from '../engine/monthlyActionAvailability'
 import type { FoodLifestyle, GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
 import { formatMoney, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
@@ -74,7 +75,10 @@ export function MonthlyCyclePage({
     flags,
     sideHustles,
   }, [sideHustleMonthlyActionProvider])
-  const coreActions = actions.filter((action) => action.source === 'core')
+  const coreActions = actions.filter((action) => action.source === 'core' && isMonthlyActionAvailable(plan, action.id))
+  const unavailableCoreActions = actions.filter((action) => action.source === 'core' && !isMonthlyActionAvailable(plan, action.id))
+  const availabilityById = new Map(plan.actionAvailability.map((entry) => [entry.actionId, entry]))
+  const visibleSideHustleRouteIds = sideHustleRouteIds.filter((routeId) => sideHustles.routes[routeId].state !== 'hidden')
   const maximumExtraPaymentRmb = getMaximumExtraPaymentRmb(stats, plan)
   const rateJpyPerRmb = plan.exchangeRate > 0 ? 1 / plan.exchangeRate : 0
   const livingExpenses = resolveLivingExpenses(plan.foodLifestyle, plan.smokingLevel, plan.extraSmokingJpy)
@@ -125,6 +129,12 @@ export function MonthlyCyclePage({
               : `−${action.actionPointCost} AP`}</b>
           </button>)}
         </div>
+        {unavailableCoreActions.length > 0 && <ul className={styles.monthUnavailableList}>
+          {unavailableCoreActions.map((action) => <li key={action.id}>
+            <span>{action.label[language]}</span>
+            <small>{availabilityById.get(action.id)?.reason?.[language]}</small>
+          </li>)}
+        </ul>}
         {plan.selectedActions.length > 0 && <ol className={styles.selectedActionList}>
           {plan.selectedActions.map((action, index) => <li key={`${action.actionId}-${index}`}>
             <span>{action.label[language]}</span>
@@ -182,7 +192,7 @@ export function MonthlyCyclePage({
       </section>
     </div>
 
-    <section className={styles.sideHustlePanel}>
+    {visibleSideHustleRouteIds.length > 0 && <section className={styles.sideHustlePanel}>
       <div className={styles.monthPanelHeading}>
         <div>
           <span>03</span>
@@ -193,22 +203,24 @@ export function MonthlyCyclePage({
           : `累計収入 ${formatMoney(sideHustles.totalIncomeJpy, 'JPY', language)}`}</small>
       </div>
       <div className={styles.sideHustleGrid}>
-        {sideHustleRouteIds.map((routeId) => {
+        {visibleSideHustleRouteIds.map((routeId) => {
           const route = sideHustles.routes[routeId]
           const config = sideHustleRouteConfigs[routeId]
           const action = actions.find((candidate) => candidate.sideHustle?.routeId === routeId)
-          const unlocked = route.unlockedAtMonth !== null || Boolean(action)
+          const unlocked = route.state === 'unlocked'
+          const actionAvailable = action ? isMonthlyActionAvailable(plan, action.id) : false
+          const availability = action ? availabilityById.get(action.id) : undefined
           const experienceRequired = experienceRequiredForNextLevel(route.level)
-          return <article key={routeId} className={unlocked ? styles.sideHustleUnlocked : styles.sideHustleLocked}>
+          return <article key={routeId} className={unlocked ? styles.sideHustleUnlocked : styles.sideHustleDiscovered}>
             <header>
-              <div><small>{unlocked ? `Lv.${route.level}` : 'LOCKED'}</small><h3>{config.label[language]}</h3></div>
+              <div><small>{unlocked ? `Lv.${route.level}` : (language === 'zh' ? '未成形的想法' : 'まだ形のない考え')}</small><h3>{config.label[language]}</h3></div>
               <strong>{formatMoney(route.totalIncomeJpy, 'JPY', language)}</strong>
             </header>
             <p>{config.description[language]}</p>
             {unlocked
               ? <>
                 <div className={styles.sideHustleProgress}><i style={{ width: `${Math.min(100, route.experience / experienceRequired * 100)}%` }} /><span>{route.experience} / {experienceRequired} XP</span></div>
-                {action && <button
+                {action && actionAvailable && <button
                   type="button"
                   disabled={!canPerformMonthlyAction(action.actionPointCost, plan.actionPointsRemaining)}
                   onClick={() => onPerformAction(action.id)}
@@ -216,12 +228,15 @@ export function MonthlyCyclePage({
                   <span>{action.label[language]}</span>
                   <small>−{action.actionPointCost} AP · +{formatMoney(action.sideHustle?.incomeJpy ?? 0, 'JPY', language)}</small>
                 </button>}
+                {action && !actionAvailable && <small className={styles.sideHustleUnavailableReason}>
+                  {availability?.reason?.[language] ?? config.unlockDescription[language]}
+                </small>}
               </>
               : <small>{config.unlockDescription[language]}</small>}
           </article>
         })}
       </div>
-    </section>
+    </section>}
 
     <div className={styles.monthClosingBar}>
       <small>{language === 'zh'

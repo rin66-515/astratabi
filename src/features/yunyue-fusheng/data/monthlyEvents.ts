@@ -651,6 +651,207 @@ export const monthlyEventDefinitions: readonly MonthlyEventDefinition[] = [
       { conditions: [{ type: 'foodLifestyleMonths', operator: 'gte', value: 4 }], multiplier: 2 },
     ],
   },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-finance-extra-income-thought',
+      title: text('另一条路', 'もう一つの道'),
+      category: 'finance',
+      text: [
+        text('某天晚上，你又算了一遍债。', 'ある夜、もう一度借金を計算した。'),
+        text('工资没有少。那个数字却下降得太慢。', '給料が減ったわけではない。それでも、数字の減り方は遅すぎた。'),
+      ],
+      observer: [text('按照当前平均还款速度，清债仍需要很长时间。', '現在の平均返済ペースでは、完済までまだ長い時間を要する。')],
+      weight: 1.2,
+      repeatable: { cooldownMonths: 2 },
+      conditions: [
+        { type: 'elapsedMonth', operator: 'gte', value: 2 },
+        { type: 'flag', flag: 'slow_debt_projection_seen' },
+        { type: 'flag', flag: 'side_hustle_direction_chosen', present: false },
+      ],
+      options: [
+        {
+          id: 'leave-it-for-now',
+          tone: 'realistic',
+          label: text('先这样吧。', '今は、このままでいい。'),
+          effects: { debtStress: 1, mental: 1 },
+          response: [text('你关掉计算器。这个念头没有消失，只是暂时没有继续。', '計算機を閉じた。考えが消えたわけではない。ただ、今夜は先へ進まなかった。')],
+        },
+        {
+          id: 'look-for-freelance',
+          tone: 'realistic',
+          label: text('看看有没有能接的私活。', '請けられる個人案件がないか見てみる。'),
+          unlockChanges: [
+            { featureId: 'side_hustle', state: 'discovered' },
+            { featureId: 'freelance', state: 'discovered' },
+          ],
+          addFlags: ['side_hustle_direction_chosen'],
+          response: [text('你第一次认真打开了接单网站。会不会做，与有没有机会，是两件不同的事。', '初めて真剣に案件サイトを開いた。できることと、機会があることは別の話だった。')],
+        },
+        {
+          id: 'organize-what-i-know',
+          tone: 'realistic',
+          label: text('也许能把自己会的东西整理出来。', '自分が知っていることを、形にできるかもしれない。'),
+          unlockChanges: [
+            { featureId: 'side_hustle', state: 'discovered' },
+            { featureId: 'it_materials', state: 'discovered' },
+          ],
+          addFlags: ['side_hustle_direction_chosen'],
+          response: [text('散落在笔记里的经验，第一次像是可以交给别人使用的东西。', 'ノートに散らばる経験が、初めて誰かに渡せるものに見えた。')],
+        },
+        {
+          id: 'go-down-the-mountain',
+          tone: 'jianghu',
+          label: text('穷则独善其身。穷得厉害，便下山挣钱。', '貧しければ身を修める。なお貧しければ、山を下りて稼ぐ。'),
+          unlockChanges: [
+            { featureId: 'side_hustle', state: 'discovered' },
+            { featureId: 'freelance', state: 'discovered' },
+          ],
+          addFlags: ['side_hustle_direction_chosen'],
+          response: [text('你心中已有一番江湖气象。现实里，你打开了招聘和接单网站。', '胸中には江湖の景色があった。現実では、求人と案件のサイトを開いた。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'debtStress', operator: 'gte', value: 75 }], multiplier: 1.8 },
+      { conditions: [{ type: 'stat', stat: 'cashJpy', operator: 'lt', value: 150_000 }], multiplier: 1.5 },
+      { conditions: [{ type: 'stat', stat: 'mental', operator: 'lt', value: 30 }], multiplier: 0.35 },
+      { conditions: [{ type: 'stat', stat: 'recoveryDebt', operator: 'gte', value: 70 }], multiplier: 0.45 },
+    ],
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-sidejob-first-freelance-offer',
+      title: text('朋友发来的小修正', '友人から届いた小さな修正'),
+      category: 'sidejob',
+      text: [
+        text('一个朋友发来消息：“你会不会做网站？我这边有个小东西想改。”', '友人から連絡が来た。「Webサイト、触れる？ 小さな修正を頼みたいんだけど」'),
+        text('范围不大。至少消息里看起来不大。', '範囲は大きくない。少なくとも、メッセージの上では。'),
+      ],
+      weight: 1,
+      repeatable: { cooldownMonths: 3 },
+      conditions: [
+        { type: 'elapsedMonth', operator: 'gte', value: 2 },
+        { type: 'featureUnlock', featureId: 'freelance', state: 'discovered' },
+        { type: 'stat', stat: 'tech', operator: 'gte', value: 35 },
+        { type: 'stat', stat: 'japanese', operator: 'gte', value: 65 },
+      ],
+      options: [
+        {
+          id: 'accept-bounded-offer',
+          tone: 'realistic',
+          label: text('先确认范围、期限和交付物，再接下来', '範囲・期限・納品物を確認してから引き受ける'),
+          effects: { boundary: 2, stress: 1 },
+          unlockChanges: [{ featureId: 'freelance', state: 'unlocked' }],
+          monthlyActionGrants: [{
+            actionId: 'side_hustle_freelance',
+            reason: text('朋友的消息，让这个月多出了一件可以做的事。', '友人からの連絡で、今月できることが一つ増えた。'),
+          }],
+          response: [text('对方回答了你的问题。它终于从一句“帮个忙”，变成了一件有边界的工作。', '相手は質問に答えた。「ちょっと手伝って」が、ようやく範囲のある仕事になった。')],
+        },
+        {
+          id: 'decline-freelance-offer',
+          tone: 'realistic',
+          label: text('这个月状态不好，先不接', '今月は状態が良くない。今回は断る'),
+          effects: { mental: 1, boundary: 1 },
+          response: [text('你拒绝的是这一次，不是这条路。', '断ったのは今回の案件であって、この道ではない。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'debtStress', operator: 'gte', value: 75 }], multiplier: 1.5 },
+      { conditions: [{ type: 'stat', stat: 'mental', operator: 'lt', value: 30 }], multiplier: 0.4 },
+    ],
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-sidejob-material-idea',
+      title: text('解释过的东西', '説明したこと'),
+      category: 'sidejob',
+      text: [
+        text('你把今天解释给同事的内容重新整理了一遍。', '今日、同僚に説明した内容をもう一度整理した。'),
+        text('这些东西，也许不只是自己用得到。', 'これは、自分だけが使うものではないのかもしれない。'),
+      ],
+      weight: 0.9,
+      repeatable: { cooldownMonths: 3 },
+      conditions: [
+        { type: 'featureUnlock', featureId: 'it_materials', state: 'discovered' },
+        { type: 'stat', stat: 'tech', operator: 'gte', value: 38 },
+        { type: 'stat', stat: 'workplace', operator: 'gte', value: 32 },
+      ],
+      options: [
+        {
+          id: 'make-first-material',
+          tone: 'realistic',
+          label: text('整理成一份别人也能使用的资料', '他の人も使える資料に整える'),
+          unlockChanges: [{ featureId: 'it_materials', state: 'unlocked' }],
+          monthlyActionGrants: [{
+            actionId: 'side_hustle_it_materials',
+            reason: text('刚解释过的内容还留在脑子里。', '説明したばかりの内容が、まだ頭に残っている。'),
+          }],
+          response: [text('你新建了一份空白文档。标题很普通，第一行却比想象中难写。', '空の文書を一つ作った。平凡な題名だったが、最初の一行は思ったより難しかった。')],
+        },
+        {
+          id: 'leave-material-notes',
+          tone: 'realistic',
+          label: text('先留下笔记，等有余力再整理', 'まずメモを残し、余力がある時に整える'),
+          effects: { mental: 1 },
+          response: [text('想法没有成篇，但也没有丢。', '資料にはならなかった。それでも、考えは残った。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'workTrust', operator: 'gte', value: 20 }], multiplier: 1.6 },
+      { conditions: [{ type: 'stat', stat: 'mental', operator: 'lt', value: 30 }], multiplier: 0.45 },
+    ],
+  },
+  {
+    kind: 'normal',
+    event: {
+      id: 'monthly-sidejob-content-feedback',
+      title: text('随手写下来的那段话', '何気なく書いた一文'),
+      category: 'sidejob',
+      text: [
+        text('你随手写了一段今天在公司的经历，没有期待什么。', '会社であったことを短く書いた。特に期待はしていなかった。'),
+        text('后来有人问：“这个在日本现场真的会这样吗？”', 'あとで誰かが聞いた。「日本の現場って、本当にこうなんですか？」'),
+      ],
+      weight: 0.85,
+      repeatable: { cooldownMonths: 3 },
+      conditions: [
+        { type: 'featureUnlock', featureId: 'side_hustle', state: 'discovered' },
+        { type: 'flag', flag: 'content_route_unlocked', present: false },
+        { type: 'stat', stat: 'japanese', operator: 'gte', value: 70 },
+      ],
+      options: [
+        {
+          id: 'continue-sharing',
+          tone: 'realistic',
+          label: text('认真回答，再继续记录下去', 'きちんと答え、これからも記録する'),
+          unlockChanges: [{ featureId: 'content_account', state: 'unlocked' }],
+          monthlyActionGrants: [{
+            actionId: 'side_hustle_content_account',
+            reason: text('忽然有些东西想写下来。', 'ふいに、書き残したいことが浮かんだ。'),
+          }],
+          addFlags: ['content_route_unlocked'],
+          response: [text('你删掉了两句太像结论的话，改成自己真正见过的细节。', '結論めいた二文を消し、自分が本当に見た細部へ書き直した。')],
+        },
+        {
+          id: 'keep-content-note',
+          tone: 'realistic',
+          label: text('先把这个问题记下来', 'まず、この質問だけ残しておく'),
+          unlockChanges: [{ featureId: 'content_account', state: 'discovered' }],
+          response: [text('它暂时只是一个未成形的想法。', 'それはまだ、形になっていない考えにすぎなかった。')],
+        },
+      ],
+    },
+    weightRules: [
+      { conditions: [{ type: 'stat', stat: 'product', operator: 'gte', value: 18 }], multiplier: 1.5 },
+      { conditions: [{ type: 'stat', stat: 'mental', operator: 'lt', value: 30 }], multiplier: 0.4 },
+      { conditions: [{ type: 'stat', stat: 'socialBattery', operator: 'lt', value: 25 }], multiplier: 0.65 },
+    ],
+  },
 ]
 
 export const monthlyEventMap = new Map(

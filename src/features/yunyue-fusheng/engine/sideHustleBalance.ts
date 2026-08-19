@@ -27,10 +27,11 @@ import { createMonthlyPlan } from './monthPlanning'
 import { selectMonthlyEventSlot } from './monthlyEventSlot'
 import { getMaximumExtraPaymentRmb, settleMonth } from './monthSettlement'
 import { applyMonthOpeningRecovery, canPerformMonthlyAction } from './recoveryResolver'
+import { isMonthlyActionAvailable, resolveMonthlyActionAvailability } from './monthlyActionAvailability'
 import {
+  applyFeatureUnlockChanges,
   applySideHustleOutcome,
   sideHustleMonthlyActionProvider,
-  unlockEligibleSideHustles,
 } from './sideHustleResolver'
 
 export type BalanceStrategyId =
@@ -115,6 +116,7 @@ type SimulationState = {
   negativeActionPointMonths: number
   flags: string[]
   completedEventIds: string[]
+  eventOccurrences: Record<string, number[]>
   eventCategoryCounts: Partial<Record<EventCategory, number>>
   totalIncomeJpy: number
   totalLivingCostJpy: number
@@ -223,7 +225,10 @@ function chooseAction(
         const leftStress = left.effects.stress ?? 0
         const rightStress = right.effects.stress ?? 0
         return (rightStress / right.actionPointCost) - (leftStress / left.actionPointCost)
-      })[0] ?? (elapsedMonth === 1 ? actionById(actions, 'study_tech') : coreFallback)
+      })[0]
+        ?? actionById(actions, 'study_tech')
+        ?? actionById(actions, 'organize_work')
+        ?? coreFallback
     }
   }
 }
@@ -272,6 +277,7 @@ function applySimulatedMonthlyEvent(
     completedEventIds: state.completedEventIds,
     sideHustles: state.sideHustles,
     livingProfile: state.livingProfile,
+    eventOccurrences: state.eventOccurrences,
   }, elapsedMonth, random)
   if (!slot.eventId) return
   const event = monthlyEventMap.get(slot.eventId)
@@ -291,6 +297,13 @@ function applySimulatedMonthlyEvent(
     ...(option.addFlags ?? []),
   ])]
   state.completedEventIds.push(event.id)
+  state.eventOccurrences[event.id] = [...(state.eventOccurrences[event.id] ?? []), elapsedMonth]
+  state.sideHustles = applyFeatureUnlockChanges(
+    state.sideHustles,
+    option.unlockChanges ?? [],
+    elapsedMonth,
+    event.id,
+  )
   state.eventCategoryCounts[event.category] = (state.eventCategoryCounts[event.category] ?? 0) + 1
 
   if (!event.miniGame) return
@@ -339,12 +352,28 @@ export function simulateBalanceRun(
     negativeActionPointMonths: 0,
     flags: [],
     completedEventIds: [],
+    eventOccurrences: {},
     eventCategoryCounts: {},
     totalIncomeJpy: 0,
     totalLivingCostJpy: 0,
     foodCostJpy: 0,
     smokingCostJpy: 0,
   }
+  const strategyRoutes: Partial<Record<BalanceStrategyId, SideHustleRouteId[]>> = {
+    freelance_only: ['freelance'],
+    materials_only: ['it_materials'],
+    content_only: ['content_account'],
+    product_focus: ['content_account', 'own_product'],
+    mixed: ['freelance', 'it_materials', 'content_account', 'own_product'],
+    high_overwork: ['freelance', 'it_materials', 'content_account', 'own_product'],
+    stress_smoker: ['freelance', 'it_materials', 'content_account', 'own_product'],
+  }
+  state.sideHustles = applyFeatureUnlockChanges(
+    state.sideHustles,
+    (strategyRoutes[strategyId] ?? []).map((featureId) => ({ featureId, state: 'unlocked' as const })),
+    2,
+    'balance-scenario',
+  )
   const operationalMonths = Math.max(1, horizonMonths - 1)
 
   // Month 1 is the playable prologue. The recurring planning/settlement loop begins in month 2.
@@ -363,12 +392,6 @@ export function simulateBalanceRun(
     )
     state.employment = employmentResolution.employment
     state.stats = { ...state.stats, salaryJpy: employmentResolution.income.totalIncomeJpy }
-    state.sideHustles = unlockEligibleSideHustles(state.sideHustles, {
-      elapsedMonth,
-      stats: state.stats,
-      flags: state.flags,
-      sideHustles: state.sideHustles,
-    })
     const plan = createMonthlyPlan(
       state.stats,
       { elapsedMonth, ...calendar },
@@ -381,6 +404,19 @@ export function simulateBalanceRun(
       },
     )
     applySimulatedMonthlyEvent(state, plan, calendar, elapsedMonth, random)
+    const actionContext = {
+      elapsedMonth,
+      stats: state.stats,
+      flags: state.flags,
+      sideHustles: state.sideHustles,
+    }
+    const plannedActions = getAvailableMonthlyActions(actionContext, [sideHustleMonthlyActionProvider])
+    plan.actionAvailability = resolveMonthlyActionAvailability(
+      plannedActions,
+      actionContext,
+      plan.actionPointsGranted,
+      random,
+    )
 
     while (strategyId === 'high_overwork' || strategyId === 'stress_smoker'
       ? plan.actionPointsRemaining > -2
@@ -390,7 +426,7 @@ export function simulateBalanceRun(
         stats: state.stats,
         flags: state.flags,
         sideHustles: state.sideHustles,
-      }, [sideHustleMonthlyActionProvider])
+      }, [sideHustleMonthlyActionProvider]).filter((action) => isMonthlyActionAvailable(plan, action.id))
       let action = chooseAction(strategyId, elapsedMonth, actions, state.sideHustles, state.stats)
       if (
         (strategyId === 'high_overwork' || strategyId === 'stress_smoker')
@@ -410,12 +446,6 @@ export function simulateBalanceRun(
         : action.actionPointCost <= plan.actionPointsRemaining)
       if (!action || !canApply) break
       applyAction(state, plan, action, elapsedMonth)
-      state.sideHustles = unlockEligibleSideHustles(state.sideHustles, {
-        elapsedMonth,
-        stats: state.stats,
-        flags: state.flags,
-        sideHustles: state.sideHustles,
-      })
     }
 
     plan.extraPaymentRmb = chooseExtraPayment(state.stats, plan, strategyId)

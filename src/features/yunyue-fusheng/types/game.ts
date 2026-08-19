@@ -62,6 +62,7 @@ export type EventCondition =
   | { type: 'foodLifestyle'; value: FoodLifestyle }
   | { type: 'smokingLevel'; value: SmokingLevel }
   | { type: 'foodLifestyleMonths'; operator: ComparisonOperator; value: number }
+  | { type: 'featureUnlock'; featureId: UnlockableFeatureId; state: UnlockState }
   | {
     type: 'sideHustle'
     routeId: SideHustleRouteId
@@ -172,6 +173,8 @@ export type EventOption = {
   response?: LocalizedText[]
   consequences?: ConditionalConsequence[]
   monthlyCost?: { category: 'smoking'; amountJpy: number }
+  unlockChanges?: FeatureUnlockChange[]
+  monthlyActionGrants?: MonthlyActionGrant[]
   /** Existing MVP compatibility; migrate content to tone: 'jianghu' in the event integration slice. */
   fantasy?: boolean
 }
@@ -188,6 +191,7 @@ export type GameEvent = {
   weight?: number
   onComplete?: GameScreen
   miniGame?: MiniGameTrigger
+  repeatable?: { cooldownMonths: number }
   options: EventOption[]
 }
 
@@ -222,12 +226,14 @@ export type EventContext = {
   completedEventIds: string[]
   sideHustles: SideHustleState
   livingProfile: LivingProfile
+  eventOccurrences?: Record<string, number[]>
 }
 
 export type ChoiceHistoryEntry = {
   eventId: string
   optionId: string
   chosenAt: string
+  elapsedMonth?: number
 }
 
 export type ChoiceResolution = {
@@ -254,8 +260,23 @@ export type MonthlyActionSource = 'core' | 'sidejob'
 
 export type SideHustleRouteId = 'freelance' | 'it_materials' | 'content_account' | 'own_product'
 
-export type SideHustleRouteState = {
+export type UnlockState = 'hidden' | 'discovered' | 'unlocked'
+
+export type UnlockableFeatureId = 'side_hustle' | SideHustleRouteId
+
+export type FeatureUnlockState = {
+  state: UnlockState
+  discoveredAtMonth: number | null
   unlockedAtMonth: number | null
+  sourceEventId: string | null
+}
+
+export type FeatureUnlockChange = {
+  featureId: UnlockableFeatureId
+  state: Exclude<UnlockState, 'hidden'>
+}
+
+export type SideHustleRouteState = FeatureUnlockState & {
   level: number
   experience: number
   totalIncomeJpy: number
@@ -263,6 +284,7 @@ export type SideHustleRouteState = {
 }
 
 export type SideHustleState = {
+  discovery: FeatureUnlockState
   routes: Record<SideHustleRouteId, SideHustleRouteState>
   totalIncomeJpy: number
 }
@@ -299,6 +321,20 @@ export type MonthlyActionSelection = {
   actionPointCost: number
   effects: GameEffects
   sideHustle?: SideHustleActionOutcome
+}
+
+export type MonthlyActionAvailabilityStatus = 'available' | 'unavailable' | 'temporary'
+
+export type MonthlyActionAvailability = {
+  actionId: string
+  status: MonthlyActionAvailabilityStatus
+  reason?: LocalizedText
+  sourceEventId?: string
+}
+
+export type MonthlyActionGrant = {
+  actionId: string
+  reason: LocalizedText
 }
 
 export type FoodLifestyle = 'survival' | 'frugal' | 'balanced' | 'comfortable'
@@ -346,6 +382,7 @@ export type MonthlyPlan = {
   foodLifestyle: FoodLifestyle
   smokingLevel: SmokingLevel
   extraSmokingJpy: number
+  actionAvailability: MonthlyActionAvailability[]
   selectedActions: MonthlyActionSelection[]
   extraPaymentRmb: number
 }
@@ -391,6 +428,7 @@ export type GameSaveState = {
   stats: GameStats
   flags: string[]
   completedEventIds: string[]
+  eventOccurrences: Record<string, number[]>
   history: ChoiceHistoryEntry[]
   currentEventId: string | null
   resolution: ChoiceResolution | null

@@ -5,8 +5,8 @@ import { monthlyEventDefinitions } from './monthlyEvents'
 import { getAvailableEvents } from '../engine/eventSelection'
 
 describe('formal monthly event content', () => {
-  it('ships 19 bilingual events with at least one realistic option each', () => {
-    expect(monthlyEventDefinitions).toHaveLength(19)
+  it('ships 23 bilingual events with at least one realistic option each', () => {
+    expect(monthlyEventDefinitions).toHaveLength(23)
     for (const { event } of monthlyEventDefinitions) {
       expect(event.title.zh.length).toBeGreaterThan(0)
       expect(event.title.ja.length).toBeGreaterThan(0)
@@ -67,5 +67,22 @@ describe('formal monthly event content', () => {
     expect(available).toContain('monthly-health-food-warning')
     expect(monthlyEventDefinitions.find(({ event }) => event.id === 'monthly-life-stress-smoking')
       ?.event.options.some((option) => option.monthlyCost?.category === 'smoking')).toBe(true)
+  })
+
+  it('allows the extra-income thought to return only after its cooldown', () => {
+    const event = monthlyEventDefinitions.find(({ event }) => event.id === 'monthly-finance-extra-income-thought')!.event
+    const baseContext = {
+      month: 10,
+      elapsedMonth: 3,
+      stats: initialGameStats,
+      flags: ['slow_debt_projection_seen'],
+      completedEventIds: [event.id],
+      eventOccurrences: { [event.id]: [2] },
+      sideHustles: createInitialSideHustleState(),
+      livingProfile: { ...initialLivingProfile },
+    }
+
+    expect(getAvailableEvents([event], baseContext)).toEqual([])
+    expect(getAvailableEvents([event], { ...baseContext, elapsedMonth: 4 })).toEqual([event])
   })
 })

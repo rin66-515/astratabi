@@ -11,7 +11,7 @@ function signed(value: number) {
 }
 
 function sideJobLabel(sideHustles: SideHustleState, language: Language) {
-  const unlockedRoutes = sideHustleRouteIds.filter((routeId) => sideHustles.routes[routeId].unlockedAtMonth !== null)
+  const unlockedRoutes = sideHustleRouteIds.filter((routeId) => sideHustles.routes[routeId].state === 'unlocked')
   if (sideHustles.totalIncomeJpy >= 100_000 || unlockedRoutes.some((routeId) => sideHustles.routes[routeId].level >= 2)) {
     return language === 'zh' ? '另一条路已出现轮廓' : 'もう一つの道が輪郭を持ち始めた'
   }
@@ -26,7 +26,7 @@ function leadingSideHustle(sideHustles: SideHustleState, language: Language) {
     return rightRoute.level - leftRoute.level || rightRoute.totalIncomeJpy - leftRoute.totalIncomeJpy
   })[0]
   const route = sideHustles.routes[routeId]
-  return route.unlockedAtMonth === null
+  return route.state !== 'unlocked'
     ? (language === 'zh' ? '尚无' : 'まだなし')
     : `${sideHustleRouteConfigs[routeId].label[language]} Lv.${route.level}`
 }

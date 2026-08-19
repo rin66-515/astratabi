@@ -16,6 +16,7 @@ import type {
   GameScreen,
   GameStats,
   FixedExpenseItem,
+  FeatureUnlockState,
   Language,
   LivingProfile,
   MonthSettlement,
@@ -25,6 +26,7 @@ import type {
   MonthlyEventKind,
   MonthlyEventSlotState,
   MonthlyActionSelection,
+  MonthlyActionAvailability,
   MonthlyPlan,
   SideHustleActionOutcome,
   SideHustleRouteId,
@@ -50,6 +52,16 @@ function numberArray(value: unknown): number[] {
 
 function finiteNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function eventOccurrencesOf(value: unknown): Record<string, number[]> {
+  if (!isRecord(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([eventId, months]) => {
+      const entries = numberArray(months).map((month) => Math.max(1, Math.floor(month)))
+      return entries.length > 0 ? [[eventId, entries]] : []
+    }),
+  )
 }
 
 function foodLifestyleOf(value: unknown): FoodLifestyle {
@@ -237,13 +249,31 @@ function migrateSideHustles(value: unknown): SideHustleState {
   const fallback = createInitialSideHustleState()
   if (!isRecord(value) || !isRecord(value.routes)) return fallback
   const routes = { ...fallback.routes }
+  const migrateUnlock = (entry: Record<string, unknown>, fallbackState: FeatureUnlockState): FeatureUnlockState => {
+    const legacyUnlockedAt = entry.unlockedAtMonth === null
+      ? null
+      : Math.max(1, finiteNumber(entry.unlockedAtMonth, 0)) || null
+    const storedState = entry.state === 'hidden' || entry.state === 'discovered' || entry.state === 'unlocked'
+      ? entry.state
+      : legacyUnlockedAt !== null ? 'unlocked' : fallbackState.state
+    const discoveredAtMonth = entry.discoveredAtMonth === null
+      ? null
+      : Math.max(1, finiteNumber(entry.discoveredAtMonth, legacyUnlockedAt ?? 0)) || legacyUnlockedAt
+    return {
+      state: storedState,
+      discoveredAtMonth: storedState === 'hidden' ? null : discoveredAtMonth,
+      unlockedAtMonth: storedState === 'unlocked' ? legacyUnlockedAt ?? discoveredAtMonth : null,
+      sourceEventId: typeof entry.sourceEventId === 'string' ? entry.sourceEventId : null,
+    }
+  }
+  const discovery = isRecord(value.discovery)
+    ? migrateUnlock(value.discovery, fallback.discovery)
+    : fallback.discovery
   for (const routeId of sideHustleRouteIds) {
     const route = value.routes[routeId]
     if (!isRecord(route)) continue
     routes[routeId] = {
-      unlockedAtMonth: route.unlockedAtMonth === null
-        ? null
-        : Math.max(1, finiteNumber(route.unlockedAtMonth, 0)) || null,
+      ...migrateUnlock(route, fallback.routes[routeId]),
       level: Math.max(0, Math.floor(finiteNumber(route.level, 0))),
       experience: Math.max(0, finiteNumber(route.experience, 0)),
       totalIncomeJpy: Math.max(0, finiteNumber(route.totalIncomeJpy, 0)),
@@ -251,6 +281,14 @@ function migrateSideHustles(value: unknown): SideHustleState {
     }
   }
   return {
+    discovery: Object.values(routes).some((route) => route.state === 'unlocked') && discovery.state === 'hidden'
+      ? {
+          state: 'discovered',
+          discoveredAtMonth: Math.min(...Object.values(routes).flatMap((route) => route.discoveredAtMonth ?? [])),
+          unlockedAtMonth: null,
+          sourceEventId: 'save-migration',
+        }
+      : discovery,
     routes,
     totalIncomeJpy: Math.max(
       0,
@@ -275,6 +313,22 @@ function migrateActionSelection(value: unknown): MonthlyActionSelection | null {
   }
 }
 
+function migrateActionAvailability(value: unknown): MonthlyActionAvailability | null {
+  if (!isRecord(value) || typeof value.actionId !== 'string') return null
+  const status = value.status === 'unavailable' || value.status === 'temporary' ? value.status : 'available'
+  const reason = isRecord(value.reason)
+    && typeof value.reason.zh === 'string'
+    && typeof value.reason.ja === 'string'
+    ? { zh: value.reason.zh, ja: value.reason.ja }
+    : undefined
+  return {
+    actionId: value.actionId,
+    status,
+    reason,
+    sourceEventId: typeof value.sourceEventId === 'string' ? value.sourceEventId : undefined,
+  }
+}
+
 function migrateFixedExpenses(value: unknown): FixedExpenseItem[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry): FixedExpenseItem[] => {
@@ -295,6 +349,9 @@ function migrateMonthlyPlan(
   if (!isRecord(value)) return null
   const selectedActions = Array.isArray(value.selectedActions)
     ? value.selectedActions.map(migrateActionSelection).filter((action): action is MonthlyActionSelection => action !== null)
+    : []
+  const actionAvailability = Array.isArray(value.actionAvailability)
+    ? value.actionAvailability.map(migrateActionAvailability).filter((entry): entry is MonthlyActionAvailability => entry !== null)
     : []
   const granted = Math.max(0, finiteNumber(value.actionPointsGranted, 0))
   return {
@@ -328,6 +385,7 @@ function migrateMonthlyPlan(
     foodLifestyle: foodLifestyleOf(value.foodLifestyle ?? livingProfile.foodLifestyle),
     smokingLevel: smokingLevelOf(value.smokingLevel ?? livingProfile.smokingLevel),
     extraSmokingJpy: Math.max(0, finiteNumber(value.extraSmokingJpy, 0)),
+    actionAvailability,
     selectedActions,
     extraPaymentRmb: Math.max(0, finiteNumber(value.extraPaymentRmb, 0)),
   }
@@ -422,6 +480,7 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
     stats,
     flags: stringArray(persistedState.flags),
     completedEventIds: stringArray(persistedState.completedEventIds),
+    eventOccurrences: eventOccurrencesOf(persistedState.eventOccurrences),
     history: Array.isArray(persistedState.history) ? persistedState.history as GameSaveState['history'] : [],
     currentEventId: typeof persistedState.currentEventId === 'string' ? persistedState.currentEventId : null,
     resolution: isRecord(persistedState.resolution) ? persistedState.resolution as GameSaveState['resolution'] : null,

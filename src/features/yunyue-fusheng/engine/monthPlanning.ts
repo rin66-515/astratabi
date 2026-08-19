@@ -65,6 +65,7 @@ export function createMonthlyPlan(
     foodLifestyle: finance.foodLifestyle,
     smokingLevel: finance.smokingLevel,
     extraSmokingJpy: 0,
+    actionAvailability: [],
     selectedActions: [],
     extraPaymentRmb: 0,
   }

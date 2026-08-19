@@ -2,11 +2,16 @@ import type { EventContext, GameEvent } from '../types/game'
 import { checkConditions } from './checkCondition'
 
 export function getAvailableEvents(events: readonly GameEvent[], context: EventContext): GameEvent[] {
-  return events.filter((event) => (
-    !context.completedEventIds.includes(event.id)
-    && (event.month === undefined || event.month === context.month)
-    && checkConditions(event.conditions, context)
-  ))
+  return events.filter((event) => {
+    const occurrenceMonths = context.eventOccurrences?.[event.id] ?? []
+    const lastOccurrence = occurrenceMonths.at(-1)
+    const recurrenceReady = event.repeatable
+      ? lastOccurrence === undefined || context.elapsedMonth - lastOccurrence >= event.repeatable.cooldownMonths
+      : !context.completedEventIds.includes(event.id)
+    return recurrenceReady
+      && (event.month === undefined || event.month === context.month)
+      && checkConditions(event.conditions, context)
+  })
 }
 
 export function pickWeightedEvent(events: readonly GameEvent[], random = Math.random): GameEvent | null {

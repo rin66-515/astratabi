@@ -17,6 +17,11 @@ export function MonthSettlementPage({ language, settlement, onContinue }: {
   settlement: MonthSettlement
   onContinue: () => void
 }) {
+  const monthlyDebtReduction = Math.max(
+    1,
+    settlement.minimumPaymentRmb + settlement.extraPaymentRmb - settlement.interestRmb,
+  )
+  const projectedMonths = Math.ceil(settlement.debtRmbAfter / monthlyDebtReduction)
   return <section className={styles.monthSettlementPage}>
     <header>
       <p className={styles.kicker}>{language === 'zh' ? `第${settlement.elapsedMonth}月 · 月结` : `${settlement.elapsedMonth}か月目・月次精算`}</p>
@@ -58,6 +63,14 @@ export function MonthSettlementPage({ language, settlement, onContinue }: {
         </dl>
       </section>
     </div>
+
+    {settlement.elapsedMonth === 2 && settlement.debtRmbAfter > 0 && <section className={styles.debtProjection}>
+      <small>{language === 'zh' ? '【观测者】' : '【観測者】'}</small>
+      <p>{language === 'zh'
+        ? `按照这个月的还款速度，预计仍需约 ${projectedMonths} 个月完成清债。`
+        : `今月の返済ペースでは、完済まであと約 ${projectedMonths} か月を要する。`}</p>
+      <strong>……</strong>
+    </section>}
 
     <section className={styles.settlementActions}>
       <h2>{language === 'zh' ? '本月自由行动' : '今月の自由行動'}</h2>

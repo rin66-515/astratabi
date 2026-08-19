@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { createInitialSideHustleState, initialGameStats } from '../data/initialState'
 import type { MonthlyActionContext, SideHustleRouteId, SideHustleState } from '../types/game'
 import {
+  applyFeatureUnlockChanges,
   applySideHustleOutcome,
-  isSideHustleUnlockEligible,
   sideHustleMonthlyActionProvider,
-  unlockEligibleSideHustles,
 } from './sideHustleResolver'
 
 function context(overrides: Partial<MonthlyActionContext> = {}): MonthlyActionContext {
@@ -20,37 +19,53 @@ function context(overrides: Partial<MonthlyActionContext> = {}): MonthlyActionCo
 }
 
 function unlockedState(levels: Partial<Record<SideHustleRouteId, number>>): SideHustleState {
-  const state = createInitialSideHustleState()
+  let state = createInitialSideHustleState()
+  state = applyFeatureUnlockChanges(
+    state,
+    (Object.keys(levels) as SideHustleRouteId[]).map((featureId) => ({ featureId, state: 'unlocked' })),
+    2,
+    'test-event',
+  )
   for (const [routeId, level] of Object.entries(levels) as [SideHustleRouteId, number][]) {
-    state.routes[routeId] = { ...state.routes[routeId], unlockedAtMonth: 2, level }
+    state.routes[routeId] = { ...state.routes[routeId], level }
   }
   return state
 }
 
 describe('side hustle routes', () => {
-  it('unlocks content in month 2 and keeps unlocked routes permanent', () => {
+  it('does not unlock a route merely because month or stats advanced', () => {
     const initial = createInitialSideHustleState()
-    const unlocked = unlockEligibleSideHustles(initial, context())
-    expect(unlocked.routes.content_account.unlockedAtMonth).toBe(2)
-    expect(unlocked.routes.freelance.unlockedAtMonth).toBeNull()
-
-    const afterStatsDrop = unlockEligibleSideHustles(unlocked, context({
-      elapsedMonth: 3,
-      stats: { ...initialGameStats, japanese: 10 },
-      sideHustles: unlocked,
-    }))
-    expect(afterStatsDrop.routes.content_account.unlockedAtMonth).toBe(2)
+    expect(sideHustleMonthlyActionProvider(context({ elapsedMonth: 12, sideHustles: initial }))).toEqual([])
   })
 
-  it('enforces each route unlock condition', () => {
-    expect(isSideHustleUnlockEligible('freelance', context({ stats: { ...initialGameStats, tech: 40 } }))).toBe(true)
-    expect(isSideHustleUnlockEligible('it_materials', context({ stats: { ...initialGameStats, tech: 38, workplace: 32 } }))).toBe(true)
-    expect(isSideHustleUnlockEligible('own_product', context({ elapsedMonth: 4, stats: { ...initialGameStats, product: 20 } }))).toBe(false)
-    expect(isSideHustleUnlockEligible('own_product', context({ elapsedMonth: 5, stats: { ...initialGameStats, product: 20 } }))).toBe(true)
+  it('keeps discovery non-executable and preserves an event-driven unlock', () => {
+    const discovered = applyFeatureUnlockChanges(
+      createInitialSideHustleState(),
+      [{ featureId: 'content_account', state: 'discovered' }],
+      2,
+      'idea-event',
+    )
+    expect(sideHustleMonthlyActionProvider(context({ sideHustles: discovered }))).toEqual([])
+
+    const unlocked = applyFeatureUnlockChanges(
+      discovered,
+      [{ featureId: 'content_account', state: 'unlocked' }],
+      4,
+      'feedback-event',
+    )
+    expect(unlocked.routes.content_account).toMatchObject({
+      state: 'unlocked',
+      discoveredAtMonth: 2,
+      unlockedAtMonth: 4,
+      sourceEventId: 'feedback-event',
+    })
+    expect(sideHustleMonthlyActionProvider(context({ elapsedMonth: 8, sideHustles: unlocked }))).toHaveLength(1)
   })
 
   it('provides AP, income, growth and stress costs for an unlocked route', () => {
-    const actions = sideHustleMonthlyActionProvider(context())
+    const actions = sideHustleMonthlyActionProvider(context({
+      sideHustles: unlockedState({ content_account: 0 }),
+    }))
     const content = actions.find((action) => action.sideHustle?.routeId === 'content_account')
     expect(content?.actionPointCost).toBe(2)
     expect(content?.sideHustle).toEqual({ routeId: 'content_account', experience: 3, incomeJpy: 2_000 })

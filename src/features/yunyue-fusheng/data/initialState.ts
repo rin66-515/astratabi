@@ -67,12 +67,19 @@ export const initialLivingProfile: LivingProfile = {
 }
 
 export function createInitialSideHustleState(): SideHustleState {
+  const hidden = () => ({
+    state: 'hidden' as const,
+    discoveredAtMonth: null,
+    unlockedAtMonth: null,
+    sourceEventId: null,
+  })
   return {
+    discovery: hidden(),
     routes: {
-      freelance: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
-      it_materials: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
-      content_account: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
-      own_product: { unlockedAtMonth: null, level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      freelance: { ...hidden(), level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      it_materials: { ...hidden(), level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      content_account: { ...hidden(), level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
+      own_product: { ...hidden(), level: 0, experience: 0, totalIncomeJpy: 0, completedActions: 0 },
     },
     totalIncomeJpy: 0,
   }
@@ -87,6 +94,7 @@ export function createInitialGameSaveState(language: Language): GameSaveState {
     stats: { ...initialGameStats },
     flags: [],
     completedEventIds: [],
+    eventOccurrences: {},
     history: [],
     currentEventId: 'main-00-arrival',
     resolution: null,

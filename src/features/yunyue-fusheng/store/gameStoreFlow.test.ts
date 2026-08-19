@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { finalEndingIds } from '../data/endingContent'
 import { createInitialGameSaveState } from '../data/initialState'
+import { applyFeatureUnlockChanges } from '../engine/sideHustleResolver'
 
 const memory = new Map<string, string>()
 vi.stubGlobal('window', {
@@ -132,7 +133,17 @@ describe('playable ending flow', () => {
   })
 
   it('runs a side hustle through AP spending, income, progression and month settlement', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
     setMonthlyState({ elapsedMonths: 2 })
+    const preparedState = useGameStore.getState()
+    useGameStore.setState({
+      sideHustles: applyFeatureUnlockChanges(
+        preparedState.sideHustles,
+        [{ featureId: 'content_account', state: 'unlocked' }],
+        2,
+        'test-event',
+      ),
+    })
     const cashBefore = useGameStore.getState().stats.cashJpy
     const stressBefore = useGameStore.getState().stats.stress
     useGameStore.getState().prepareMonth()
@@ -150,6 +161,49 @@ describe('playable ending flow', () => {
     useGameStore.getState().completeMonth()
     expect(useGameStore.getState().monthlySettlements.at(-1)?.sideHustleIncomeJpy).toBe(2_000)
     expect(useGameStore.getState().screen).toBe('month-settlement')
+    random.mockRestore()
+  })
+
+  it('does not auto-unlock side hustles in month 2 and records the slow-debt feedback', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+    setMonthlyState({ elapsedMonths: 2 })
+    useGameStore.getState().prepareMonth()
+
+    expect(Object.values(useGameStore.getState().sideHustles.routes).every((route) => route.state === 'hidden')).toBe(true)
+    useGameStore.getState().completeMonth()
+    expect(useGameStore.getState().flags).toContain('slow_debt_projection_seen')
+    random.mockRestore()
+  })
+
+  it('discovers a route through reflection and unlocks it only after a real offer', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+    setMonthlyState({ elapsedMonths: 3 })
+    useGameStore.getState().prepareMonth()
+    useGameStore.setState({
+      screen: 'event',
+      currentEventId: 'monthly-finance-extra-income-thought',
+      resolution: null,
+      flags: ['slow_debt_projection_seen'],
+    })
+    useGameStore.getState().chooseOption('look-for-freelance')
+    expect(useGameStore.getState().sideHustles.routes.freelance.state).toBe('discovered')
+    expect(useGameStore.getState().monthlyPlan?.actionAvailability.some((entry) => entry.actionId === 'side_hustle_freelance')).toBe(false)
+
+    useGameStore.setState({
+      currentEventId: 'monthly-sidejob-first-freelance-offer',
+      resolution: null,
+    })
+    useGameStore.getState().chooseOption('accept-bounded-offer')
+    expect(useGameStore.getState().sideHustles.routes.freelance).toMatchObject({
+      state: 'unlocked',
+      discoveredAtMonth: 3,
+      unlockedAtMonth: 3,
+    })
+    expect(useGameStore.getState().monthlyPlan?.actionAvailability.find((entry) => entry.actionId === 'side_hustle_freelance')).toMatchObject({
+      status: 'temporary',
+      sourceEventId: 'monthly-sidejob-first-freelance-offer',
+    })
+    random.mockRestore()
   })
 
   it('does not reroll a selected monthly event while preparing the same month', () => {
@@ -302,6 +356,7 @@ describe('playable ending flow', () => {
         foodLifestyle: state.livingProfile.foodLifestyle,
         smokingLevel: state.livingProfile.smokingLevel,
         extraSmokingJpy: 0,
+        actionAvailability: [],
         selectedActions: [],
         extraPaymentRmb: 0,
       },
@@ -342,6 +397,7 @@ describe('playable ending flow', () => {
         foodLifestyle: state.livingProfile.foodLifestyle,
         smokingLevel: state.livingProfile.smokingLevel,
         extraSmokingJpy: 0,
+        actionAvailability: [],
         selectedActions: [],
         extraPaymentRmb: 0,
       },
