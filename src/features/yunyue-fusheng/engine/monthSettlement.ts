@@ -135,6 +135,7 @@ export function settleMonth(
       salaryJpy: plan.income.totalIncomeJpy,
       income: { ...plan.income },
       sideHustleIncomeJpy,
+      stagePolicy: plan.stagePolicy,
       foodLifestyle: plan.foodLifestyle,
       smokingLevel: plan.smokingLevel,
       foodCostJpy: fixedExpenses.find((expense) => expense.id === 'food')?.amountJpy ?? 0,

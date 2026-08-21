@@ -106,7 +106,7 @@
 .primaryButton:hover, .quietButton:hover { transform: translateY(-2px); }
 .primaryButton:focus-visible, .quietButton:focus-visible, .optionList button:focus-visible { outline: 2px solid var(--game-moon); outline-offset: 4px; }
 
-.monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage {
+.monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .timePassagePage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage {
   display: grid;
   min-height: calc(100dvh - 58px);
   align-content: center;
@@ -114,7 +114,7 @@
   padding: 80px clamp(24px, 7vw, 90px);
   text-align: center;
 }
-.monthIntro h1, .summaryHeading h1, .previewPage h1, .monthCyclePage h1, .monthSettlementPage h1, .reportPage h1, .stageEndingPage h1, .debtFreePage h1, .finalEndingPage h1, .endingDebugPage h1 { margin-bottom: 24px; font: 500 clamp(36px, 7vw, 68px) / 1.35 'Shippori Mincho', serif; letter-spacing: .07em; }
+.monthIntro h1, .summaryHeading h1, .previewPage h1, .monthCyclePage h1, .monthSettlementPage h1, .timePassagePage h1, .reportPage h1, .stageEndingPage h1, .debtFreePage h1, .finalEndingPage h1, .endingDebugPage h1 { margin-bottom: 24px; font: 500 clamp(36px, 7vw, 68px) / 1.35 'Shippori Mincho', serif; letter-spacing: .07em; }
 .monthIntro > p:not(.kicker) { max-width: 600px; color: var(--game-muted); line-height: 2; }
 .monthLedger { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)); width: min(100%, 650px); margin: 42px 0; border-top: 1px solid rgba(65, 58, 47, .16); border-bottom: 1px solid rgba(65, 58, 47, .16); }
 .monthLedger div { padding: 20px; border-right: 1px solid rgba(65, 58, 47, .12); }
@@ -216,6 +216,14 @@
 .monthCycleLedger div:nth-last-child(-n + 3) { border-bottom: 0; }
 .monthCycleLedger dt { margin-bottom: 6px; color: var(--game-muted); font-size: 10px; }
 .monthCycleLedger dd { margin: 0; font: 13px 'DM Mono', monospace; }
+.stagePolicyPanel { width: 100%; margin: 10px 0 22px; padding: 24px 28px; border: 1px solid rgba(50, 47, 40, .14); background: rgba(255, 253, 247, .48); }
+.stagePolicyOptions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stagePolicyOptions button { display: grid; align-content: start; gap: 7px; min-height: 82px; padding: 14px; border: 1px solid rgba(50, 47, 40, .14); color: var(--game-ink); background: rgba(255, 253, 247, .7); text-align: left; }
+.stagePolicyOptions button strong { font: 500 12px 'Shippori Mincho', serif; }
+.stagePolicyOptions button small { color: var(--game-muted); font-size: 9px; line-height: 1.6; }
+.stagePolicyOptions button[aria-pressed='true'] { border-color: rgba(135, 49, 34, .62); background: rgba(135, 49, 34, .08); }
+.stagePolicyOptions button[aria-pressed='true'] strong { color: #742f25; }
+.stagePolicyOptions button:disabled { cursor: not-allowed; opacity: .42; }
 .monthOperatingGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; margin: 10px 0 28px; }
 .monthPanel { padding: 28px; border: 1px solid rgba(50, 47, 40, .14); background: rgba(255, 253, 247, .48); }
 .monthPanelHeading { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
@@ -300,6 +308,30 @@
 .settlementActions li { padding: 7px 10px; border: 1px solid rgba(50, 47, 40, .12); font-size: 10px; }
 .settlementActions > small { color: var(--game-muted); font-size: 10px; }
 
+.timePassagePage { width: min(100%, 900px); align-content: start; text-align: left; }
+.timePassagePage > header { width: 100%; margin-bottom: 26px; }
+.timePassageStory { width: 100%; padding: 30px 34px; border-left: 2px solid rgba(159, 69, 58, .5); background: rgba(255, 253, 247, .58); }
+.timePassageStory > small { color: var(--game-vermilion); font: 9px 'DM Mono', monospace; letter-spacing: .14em; }
+.timePassageStory h2 { margin: 12px 0 20px; font: 500 28px 'Shippori Mincho', serif; }
+.timePassageStory > p { margin: 0 0 10px; color: #5a554d; line-height: 2; }
+.timePassageStory footer { display: flex; align-items: baseline; gap: 14px; margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(50, 47, 40, .1); }
+.timePassageStory footer span { color: var(--game-muted); font-size: 9px; }
+.timePassageStory footer strong { color: #42705e; font: 500 13px 'Shippori Mincho', serif; }
+.timePassageLedger { display: grid; grid-template-columns: repeat(5, 1fr); width: 100%; margin: 24px 0; border: 1px solid rgba(50, 47, 40, .13); background: rgba(255, 253, 247, .48); }
+.timePassageLedger div { padding: 16px 13px; border-right: 1px solid rgba(50, 47, 40, .1); }
+.timePassageLedger div:last-child { border-right: 0; }
+.timePassageLedger dt { margin-bottom: 7px; color: var(--game-muted); font-size: 9px; }
+.timePassageLedger dd { margin: 0; font: 10px/1.6 'DM Mono', monospace; }
+.timePassageDetails { width: 100%; margin-bottom: 30px; padding: 18px 22px; border: 1px solid rgba(50, 47, 40, .12); }
+.timePassageDetails summary { cursor: pointer; color: var(--game-muted); font-size: 10px; }
+.timePassageDetails ol { margin: 18px 0 0; padding: 0; list-style: none; }
+.timePassageDetails li { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 18px; padding: 12px 0; border-top: 1px solid rgba(50, 47, 40, .1); }
+.timePassageDetails li > div { display: grid; gap: 3px; }
+.timePassageDetails li strong { font: 500 11px 'Shippori Mincho', serif; }
+.timePassageDetails li small, .timePassageDetails li p { color: var(--game-muted); font-size: 9px; }
+.timePassageDetails li p { margin: 0; line-height: 1.6; }
+.timePassageDetails li > span { font: 9px 'DM Mono', monospace; }
+
 .reportPage { align-content: start; width: min(100%, 980px); text-align: left; }
 .reportPage > header { width: 100%; margin-bottom: 38px; }
 .reportPage > header p:last-child { color: var(--game-muted); }
@@ -382,7 +414,7 @@
 @media (max-width: 780px) {
   .portalBar { min-height: 52px; padding-inline: 18px; }
   .pageFrame { min-height: calc(100dvh - 52px); }
-  .coverPage, .monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage, .debtFreeScene, .miniGamePage { min-height: calc(100dvh - 52px); }
+  .coverPage, .monthIntro, .summaryPage, .previewPage, .recoveryPage, .monthCyclePage, .monthSettlementPage, .timePassagePage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage, .debtFreeScene, .miniGamePage { min-height: calc(100dvh - 52px); }
   .coverPage { padding: 64px 22px 82px; }
   .tokyoGlow { right: -10%; width: 78vw; opacity: .38; }
   .coverCopy h1 { font-size: clamp(48px, 17vw, 76px); }
@@ -405,17 +437,24 @@
   .summaryGrid { grid-template-columns: 1fr; gap: 38px; }
   .summaryHeading { margin-top: 8px; }
   .summaryPage blockquote { margin-top: 38px; padding: 24px 22px; }
-  .monthCyclePage, .monthSettlementPage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage { padding: 58px 22px; }
+  .monthCyclePage, .monthSettlementPage, .timePassagePage, .reportPage, .stageEndingPage, .debtFreePage, .finalEndingPage, .endingDebugPage { padding: 58px 22px; }
   .monthCycleHeader { align-items: start; }
   .monthCycleLedger { grid-template-columns: repeat(2, 1fr); }
   .monthCycleLedger div:nth-child(3n) { border-right: 1px solid rgba(50, 47, 40, .1); }
   .monthCycleLedger div:nth-child(2n) { border-right: 0; }
   .monthCycleLedger div:nth-last-child(-n + 3) { border-bottom: 1px solid rgba(50, 47, 40, .1); }
   .monthCycleLedger div:nth-last-child(-n + 2) { border-bottom: 0; }
+  .stagePolicyOptions { grid-template-columns: repeat(2, 1fr); }
   .monthOperatingGrid, .settlementGrid { grid-template-columns: 1fr; }
   .lifestyleOptions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sideHustleGrid { grid-template-columns: repeat(2, 1fr); }
   .monthClosingBar { align-items: stretch; flex-direction: column; }
+  .timePassageLedger { grid-template-columns: repeat(2, 1fr); }
+  .timePassageLedger div { border-bottom: 1px solid rgba(50, 47, 40, .1); }
+  .timePassageLedger div:nth-child(2n) { border-right: 0; }
+  .timePassageLedger div:last-child { grid-column: 1 / -1; border-bottom: 0; }
+  .timePassageDetails li { grid-template-columns: 1fr auto; }
+  .timePassageDetails li p { grid-column: 1 / -1; }
   .reportGrid { grid-template-columns: 1fr; gap: 28px; }
   .reportChoices li { grid-template-columns: 1fr; gap: 5px; }
   .debtFreeScene { padding: 62px 26px; }
@@ -435,6 +474,7 @@
   .monthCycleHeader { flex-direction: column; }
   .actionPointSeal { width: 100%; }
   .monthActionList { grid-template-columns: 1fr; }
+  .stagePolicyOptions { grid-template-columns: 1fr; }
   .sideHustleGrid { grid-template-columns: 1fr; }
   .miniGameHeader output { font-size: 40px; }
 }

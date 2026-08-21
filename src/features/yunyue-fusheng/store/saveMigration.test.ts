@@ -238,5 +238,49 @@ describe('migrateGameSave', () => {
     expect(migrated.sideHustles.discovery.state).toBe('discovered')
     expect(migrated.eventOccurrences['monthly-finance-extra-income-thought']).toEqual([2, 5])
     expect(migrated.monthlyPlan?.actionAvailability).toEqual([])
+    expect(migrated.monthlyPlan?.stagePolicy).toBe('balanced')
+    expect(migrated.timePassage).toBeNull()
+    expect(migrated.timePassageHistory).toEqual([])
+  })
+
+  it('preserves a v11 time passage without rerolling its cause or resume event', () => {
+    const source = migrateGameSave({}, 1)
+    const migrated = migrateGameSave({
+      ...source,
+      screen: 'time-passage',
+      timePassage: {
+        causeId: 'game_absorption',
+        policy: 'study',
+        fromElapsedMonth: 6,
+        toElapsedMonth: 9,
+        skippedMonths: 3,
+        statsBefore: source.stats,
+        statsAfter: { ...source.stats, mental: 52 },
+        months: [{
+          elapsedMonth: 7,
+          year: 2025,
+          month: 2,
+          debtRmbAfter: 70_000,
+          cashJpyAfter: 300_000,
+          healthAfter: 60,
+          mentalAfter: 52,
+          stressAfter: 48,
+          actions: [],
+        }],
+        resumeEventId: 'monthly-institution-tax-letter',
+      },
+      timePassageHistory: [{ causeId: 'game_absorption', fromElapsedMonth: 6, toElapsedMonth: 9 }],
+    }, 11)
+
+    expect(migrated.screen).toBe('time-passage')
+    expect(migrated.timePassage).toMatchObject({
+      causeId: 'game_absorption',
+      policy: 'study',
+      skippedMonths: 3,
+      resumeEventId: 'monthly-institution-tax-letter',
+    })
+    expect(migrated.timePassageHistory).toEqual([
+      { causeId: 'game_absorption', fromElapsedMonth: 6, toElapsedMonth: 9 },
+    ])
   })
 })

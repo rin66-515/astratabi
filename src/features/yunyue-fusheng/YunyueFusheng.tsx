@@ -18,6 +18,7 @@ import { MiniGamePage } from './pages/MiniGamePage'
 import { MonthlyCyclePage } from './pages/MonthlyCyclePage'
 import { PreviewPage } from './pages/PreviewPage'
 import { StageEndingPage } from './pages/StageEndingPage'
+import { TimePassagePage } from './pages/TimePassagePage'
 import { useGameStore } from './store/gameStore'
 import { trackEvent } from './utils/trackEvent'
 import styles from './YunyueFusheng.module.css'
@@ -81,13 +82,14 @@ export function YunyueFusheng({ onExit }: { onExit: () => void }) {
             {opened && game.screen === 'monthly-minigame' && game.activeMiniGame && <MiniGamePage language={game.language} session={game.activeMiniGame} onChoose={game.chooseMonthlyMiniGameOption} onTimeout={game.timeoutMonthlyMiniGame} onContinue={game.continueAfterMonthlyMiniGame} />}
             {opened && game.screen === 'month-summary' && <MonthSummaryPage language={game.language} stats={game.stats} history={game.history} onNext={game.showPreview} />}
             {opened && game.screen === 'preview' && <PreviewPage language={game.language} onEnterNextMonth={game.enterNextMonth} onExit={exitGame} />}
-            {opened && game.screen === 'monthly-cycle' && game.monthlyPlan && <MonthlyCyclePage language={game.language} year={game.year} month={game.month} stats={game.stats} progress={game.progress} flags={game.flags} sideHustles={game.sideHustles} plan={game.monthlyPlan} onPerformAction={game.performMonthlyAction} onSetExtraPayment={game.setExtraPayment} onSetFoodLifestyle={game.setFoodLifestyle} onComplete={game.completeMonth} />}
+            {opened && game.screen === 'monthly-cycle' && game.monthlyPlan && <MonthlyCyclePage language={game.language} year={game.year} month={game.month} stats={game.stats} progress={game.progress} flags={game.flags} sideHustles={game.sideHustles} plan={game.monthlyPlan} onPerformAction={game.performMonthlyAction} onSetExtraPayment={game.setExtraPayment} onSetFoodLifestyle={game.setFoodLifestyle} onSetStagePolicy={game.setStagePolicy} onComplete={game.completeMonth} />}
             {opened && game.screen === 'month-settlement' && latestSettlement && <MonthSettlementPage language={game.language} settlement={latestSettlement} onContinue={game.continueAfterMonthSettlement} />}
+            {opened && game.screen === 'time-passage' && game.timePassage && <TimePassagePage language={game.language} passage={game.timePassage} onContinue={game.continueAfterTimePassage} />}
             {opened && game.screen === 'annual-report' && <AnnualReportPage language={game.language} stats={game.stats} sideHustles={game.sideHustles} history={game.history} onContinue={game.completeAnnualReport} />}
             {opened && game.screen === 'stage-ending' && game.progress.stageEnding && <StageEndingPage language={game.language} endingId={game.progress.stageEnding} onContinue={game.continueAfterStageEnding} />}
             {opened && game.screen === 'debt-free-month' && <DebtFreeMonthPage language={game.language} stats={game.stats} onChoose={game.chooseDebtFreeMonth} />}
             {opened && game.screen === 'debt-free-scene' && <DebtFreeScenePage language={game.language} onContinue={game.completeDebtFreeScene} />}
-            {opened && game.screen === 'final-ending' && game.progress.finalEnding && <FinalEndingPage language={game.language} endingId={game.progress.finalEnding} onRestart={restartGame} onExit={exitGame} />}
+            {opened && game.screen === 'final-ending' && game.progress.finalEnding && <FinalEndingPage language={game.language} endingId={game.progress.finalEnding} onExit={exitGame} />}
             {opened && game.screen === 'event' && !currentEvent && <section className={styles.recoveryPage}><p>{game.language === 'zh' ? '这一页被风吹散了。存档仍在，但当前事件无法继续。' : 'この頁は風に散った。セーブは残っているが、現在のイベントを続けられない。'}</p><button className={styles.primaryButton} type="button" onClick={restartGame}>{game.language === 'zh' ? '重新入卷' : '最初から開く'}</button></section>}
           </>}
       </motion.div>

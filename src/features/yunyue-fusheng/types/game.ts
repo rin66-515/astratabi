@@ -13,6 +13,7 @@ export type GameScreen =
   | 'preview'
   | 'monthly-cycle'
   | 'month-settlement'
+  | 'time-passage'
   | 'annual-report'
   | 'stage-ending'
   | 'debt-free-month'
@@ -340,6 +341,15 @@ export type MonthlyActionGrant = {
 export type FoodLifestyle = 'survival' | 'frugal' | 'balanced' | 'comfortable'
 export type SmokingLevel = 'none' | 'light' | 'regular' | 'heavy'
 
+export type StagePolicyId = 'balanced' | 'recovery' | 'career' | 'study' | 'debt' | 'side_hustle'
+
+export type TimePassageCauseId =
+  | 'quiet'
+  | 'illness'
+  | 'project_crunch'
+  | 'game_absorption'
+  | 'side_hustle_sprint'
+
 export type EmploymentState = {
   baseSalaryJpy: number
   roleAllowanceJpy: number
@@ -381,6 +391,7 @@ export type MonthlyPlan = {
   income: IncomeBreakdown
   foodLifestyle: FoodLifestyle
   smokingLevel: SmokingLevel
+  stagePolicy: StagePolicyId
   extraSmokingJpy: number
   actionAvailability: MonthlyActionAvailability[]
   selectedActions: MonthlyActionSelection[]
@@ -404,6 +415,7 @@ export type MonthSettlement = {
   salaryJpy: number
   income: IncomeBreakdown
   sideHustleIncomeJpy: number
+  stagePolicy: StagePolicyId
   foodLifestyle: FoodLifestyle
   smokingLevel: SmokingLevel
   foodCostJpy: number
@@ -418,6 +430,36 @@ export type MonthSettlement = {
   cashJpyAfter: number
   debtRmbAfter: number
   actions: MonthlyActionSelection[]
+}
+
+export type TimePassageMonthSummary = {
+  elapsedMonth: number
+  year: number
+  month: number
+  debtRmbAfter: number
+  cashJpyAfter: number
+  healthAfter: number
+  mentalAfter: number
+  stressAfter: number
+  actions: LocalizedText[]
+}
+
+export type TimePassageState = {
+  causeId: TimePassageCauseId
+  policy: StagePolicyId
+  fromElapsedMonth: number
+  toElapsedMonth: number
+  skippedMonths: number
+  statsBefore: GameStats
+  statsAfter: GameStats
+  months: TimePassageMonthSummary[]
+  resumeEventId: string | null
+}
+
+export type TimePassageRecord = {
+  causeId: TimePassageCauseId
+  fromElapsedMonth: number
+  toElapsedMonth: number
 }
 
 export type GameSaveState = {
@@ -441,5 +483,7 @@ export type GameSaveState = {
   livingProfile: LivingProfile
   monthlyPlan: MonthlyPlan | null
   monthlySettlements: MonthSettlement[]
+  timePassage: TimePassageState | null
+  timePassageHistory: TimePassageRecord[]
   debtFreeChoiceId: string | null
 }

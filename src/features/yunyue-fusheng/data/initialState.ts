@@ -107,6 +107,8 @@ export function createInitialGameSaveState(language: Language): GameSaveState {
     livingProfile: { ...initialLivingProfile },
     monthlyPlan: null,
     monthlySettlements: [],
+    timePassage: null,
+    timePassageHistory: [],
     debtFreeChoiceId: null,
   }
 }

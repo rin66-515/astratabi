@@ -5,6 +5,7 @@ export type GameTrackingEvent =
   | 'event_choice'
   | 'monthly_action'
   | 'month_complete'
+  | 'time_passage'
   | 'minigame_start'
   | 'minigame_choice'
   | 'minigame_timeout'

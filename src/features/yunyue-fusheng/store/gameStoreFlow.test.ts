@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { finalEndingIds } from '../data/endingContent'
 import { createInitialGameSaveState } from '../data/initialState'
+import { monthlyEventDefinitions } from '../data/monthlyEvents'
 import { applyFeatureUnlockChanges } from '../engine/sideHustleResolver'
 
 const memory = new Map<string, string>()
@@ -130,6 +131,30 @@ describe('playable ending flow', () => {
     expect(useGameStore.getState().monthlyPlan?.actionPointsRemaining)
       .toBe((firstPlan?.actionPointsRemaining ?? 0) - 1)
     expect(useGameStore.getState().monthlyPlan?.selectedActions[0]?.actionId).toBe('rest')
+  })
+
+  it('turns a monthly choice into a stage policy and resumes after a stored time passage', () => {
+    setMonthlyState({ elapsedMonths: 3 })
+    useGameStore.setState({
+      completedEventIds: monthlyEventDefinitions.map((definition) => definition.event.id),
+    })
+    useGameStore.getState().prepareMonth()
+    useGameStore.getState().setStagePolicy('study')
+    expect(useGameStore.getState().monthlyPlan?.stagePolicy).toBe('study')
+
+    useGameStore.getState().completeMonth()
+    useGameStore.getState().continueAfterMonthSettlement()
+    const passage = useGameStore.getState().timePassage
+    expect(useGameStore.getState().screen).toBe('time-passage')
+    expect(passage?.policy).toBe('study')
+    expect(passage?.skippedMonths).toBeGreaterThanOrEqual(2)
+    expect(passage?.skippedMonths).toBeLessThanOrEqual(3)
+
+    const elapsedAfterPassage = passage?.toElapsedMonth ?? 0
+    useGameStore.getState().continueAfterTimePassage()
+    expect(useGameStore.getState().screen).toBe('monthly-cycle')
+    expect(useGameStore.getState().progress.elapsedMonths).toBe(elapsedAfterPassage + 1)
+    expect(useGameStore.getState().timePassage).toBeNull()
   })
 
   it('runs a side hustle through AP spending, income, progression and month settlement', () => {
@@ -355,6 +380,7 @@ describe('playable ending flow', () => {
         },
         foodLifestyle: state.livingProfile.foodLifestyle,
         smokingLevel: state.livingProfile.smokingLevel,
+        stagePolicy: 'balanced',
         extraSmokingJpy: 0,
         actionAvailability: [],
         selectedActions: [],
@@ -396,6 +422,7 @@ describe('playable ending flow', () => {
         },
         foodLifestyle: state.livingProfile.foodLifestyle,
         smokingLevel: state.livingProfile.smokingLevel,
+        stagePolicy: 'balanced',
         extraSmokingJpy: 0,
         actionAvailability: [],
         selectedActions: [],

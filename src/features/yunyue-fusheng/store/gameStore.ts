@@ -36,6 +36,7 @@ import {
   applySideHustleOutcome,
   sideHustleMonthlyActionProvider,
 } from '../engine/sideHustleResolver'
+import { resolveTimePassage } from '../engine/timePassageResolver'
 import type {
   EventContext,
   FinalEndingId,
@@ -45,6 +46,8 @@ import type {
   Language,
   MonthlyPlan,
   FoodLifestyle,
+  StagePolicyId,
+  MonthlyEventSlotState,
 } from '../types/game'
 import { trackEvent } from '../utils/trackEvent'
 import { migrateGameSave } from './saveMigration'
@@ -63,8 +66,10 @@ type GameActions = {
   performMonthlyAction: (actionId: string) => void
   setExtraPayment: (amountRmb: number) => void
   setFoodLifestyle: (foodLifestyle: FoodLifestyle) => void
+  setStagePolicy: (policy: StagePolicyId) => void
   completeMonth: () => void
   continueAfterMonthSettlement: () => void
+  continueAfterTimePassage: () => void
   completeAnnualReport: () => void
   continueAfterStageEnding: () => void
   chooseMonthlyMiniGameOption: (optionId: string) => void
@@ -122,7 +127,20 @@ function withActionAvailability(
   }
 }
 
-function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
+function forcedEventSlot(eventId: string | null, elapsedMonth: number): MonthlyEventSlotState | null {
+  if (!eventId) return null
+  const definition = monthlyEventDefinitions.find((candidate) => candidate.event.id === eventId)
+  if (!definition) return null
+  return {
+    elapsedMonth,
+    kind: definition.kind,
+    eventId,
+    status: 'pending',
+    miniGame: definition.event.miniGame ? { ...definition.event.miniGame } : null,
+  }
+}
+
+function nextMonthlyCycle(state: GameSaveState, resumeEventId: string | null = null): Partial<GameSaveState> {
   const calendar = followingCalendarMonth(state.year, state.month)
   const elapsedMonths = state.progress.elapsedMonths + 1
   const previousSettlement = state.monthlySettlements.at(-1) ?? null
@@ -146,7 +164,7 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
     smokingLevel: state.livingProfile.smokingLevel,
   })
   const monthlyPlan = withActionAvailability(basePlan, openingStats, state.flags, state.sideHustles)
-  const monthlyEventSlot = selectMonthlyEventSlot(monthlyEventDefinitions, {
+  const monthlyEventSlot = forcedEventSlot(resumeEventId, elapsedMonths) ?? selectMonthlyEventSlot(monthlyEventDefinitions, {
     month: calendar.month,
     elapsedMonth: elapsedMonths,
     stats: openingStats,
@@ -162,6 +180,7 @@ function nextMonthlyCycle(state: GameSaveState): Partial<GameSaveState> {
     currentEventId: monthlyEventSlot.eventId,
     resolution: null,
     activeMiniGame: null,
+    timePassage: null,
     monthlyEventSlot,
     stats: { ...openingStats, actionPoints: monthlyPlan.actionPointsGranted },
     employment: employmentResolution.employment,
@@ -196,6 +215,7 @@ function enterDebtFreeMonth(state: GameSaveState): Partial<GameSaveState> {
     ...calendar,
     screen: 'debt-free-month',
     monthlyPlan: null,
+    timePassage: null,
     debtFreeChoiceId: null,
     progress: {
       ...state.progress,
@@ -214,12 +234,14 @@ function transitionAfterMonth(state: GameSaveState): Partial<GameSaveState> {
       return {
         screen: 'annual-report',
         monthlyPlan: null,
+        timePassage: null,
         progress: { ...state.progress, phase: 'annual_report' },
       }
     case 'stage_ending':
       return {
         screen: 'stage-ending',
         monthlyPlan: null,
+        timePassage: null,
         progress: { ...state.progress, phase: 'stage_ending', stageEnding: transition.endingId },
       }
     case 'debt_free_month':
@@ -228,6 +250,7 @@ function transitionAfterMonth(state: GameSaveState): Partial<GameSaveState> {
       return {
         screen: 'final-ending',
         monthlyPlan: null,
+        timePassage: null,
         progress: { ...state.progress, phase: 'final_ending', finalEnding: transition.endingId },
       }
     case 'next_month':
@@ -484,6 +507,14 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     })
   },
 
+  setStagePolicy: (stagePolicy) => {
+    const state = get()
+    if (state.screen !== 'monthly-cycle' || !state.monthlyPlan) return
+    const hasSideHustle = Object.values(state.sideHustles.routes).some((route) => route.state === 'unlocked')
+    if (stagePolicy === 'side_hustle' && !hasSideHustle) return
+    set({ monthlyPlan: { ...state.monthlyPlan, stagePolicy } })
+  },
+
   completeMonth: () => {
     const state = get()
     if (state.screen !== 'monthly-cycle') return
@@ -516,6 +547,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
       monthlySettlements: settledState.monthlySettlements,
       progress: settledState.progress,
       monthlyPlan: null,
+      timePassage: null,
       screen: 'month-settlement',
     })
     trackEvent('month_complete', { month: state.progress.elapsedMonths })
@@ -524,7 +556,43 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   continueAfterMonthSettlement: () => {
     const state = get()
     if (state.screen !== 'month-settlement') return
-    set(transitionAfterMonth(state))
+    const transition = resolveMonthTransition(state)
+    if (transition.kind !== 'next_month') {
+      set(transitionAfterMonth(state))
+      return
+    }
+    const resolved = resolveTimePassage(state)
+    if (!resolved.passage) {
+      set(nextMonthlyCycle(state, resolved.resumeEventId))
+      return
+    }
+    set({
+      ...resolved.state,
+      screen: 'time-passage',
+      timePassage: resolved.passage,
+      timePassageHistory: [...state.timePassageHistory, {
+        causeId: resolved.passage.causeId,
+        fromElapsedMonth: resolved.passage.fromElapsedMonth,
+        toElapsedMonth: resolved.passage.toElapsedMonth,
+      }],
+    })
+    trackEvent('time_passage', {
+      causeId: resolved.passage.causeId,
+      skippedMonths: resolved.passage.skippedMonths,
+      toMonth: resolved.passage.toElapsedMonth,
+    })
+  },
+
+  continueAfterTimePassage: () => {
+    const state = get()
+    if (state.screen !== 'time-passage' || !state.timePassage) return
+    const resumeEventId = state.timePassage.resumeEventId
+    const transition = resolveMonthTransition(state)
+    if (transition.kind === 'next_month') {
+      set(nextMonthlyCycle(state, resumeEventId))
+      return
+    }
+    set(transitionAfterMonth({ ...state, timePassage: null }))
   },
 
   completeAnnualReport: () => {
@@ -667,7 +735,7 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
   },
 }), {
   name: SAVE_KEY,
-  version: 10,
+  version: 11,
   storage: createJSONStorage(() => window.localStorage),
   migrate: migrateGameSave,
   partialize: (state): GameSaveState => ({
@@ -691,6 +759,8 @@ export const useGameStore = create<GameStore>()(persist((set, get) => ({
     livingProfile: state.livingProfile,
     monthlyPlan: state.monthlyPlan,
     monthlySettlements: state.monthlySettlements,
+    timePassage: state.timePassage,
+    timePassageHistory: state.timePassageHistory,
     debtFreeChoiceId: state.debtFreeChoiceId,
   }),
 }))

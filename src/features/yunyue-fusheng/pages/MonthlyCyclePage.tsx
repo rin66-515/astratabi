@@ -1,4 +1,5 @@
 import { getAvailableMonthlyActions } from '../data/monthlyActions'
+import { stagePolicyContent } from '../data/timePassage'
 import {
   EXTRA_PAYMENT_CASH_RESERVE_JPY,
   getMaximumExtraPaymentRmb,
@@ -12,11 +13,12 @@ import {
 } from '../engine/sideHustleResolver'
 import { canPerformMonthlyAction, MONTHLY_AP_OVERDRAFT_LIMIT } from '../engine/recoveryResolver'
 import { isMonthlyActionAvailable } from '../engine/monthlyActionAvailability'
-import type { FoodLifestyle, GameStats, Language, MonthlyPlan, SideHustleState, VolumeProgress } from '../types/game'
+import type { FoodLifestyle, GameStats, Language, MonthlyPlan, SideHustleState, StagePolicyId, VolumeProgress } from '../types/game'
 import { formatMoney, statusLabel } from '../utils/presentation'
 import styles from '../YunyueFusheng.module.css'
 
 const extraPaymentOptions = [0, 2_000, 5_000, 10_000] as const
+const stagePolicyIds = Object.keys(stagePolicyContent) as StagePolicyId[]
 
 const expenseLabels = {
   rent: { zh: '房租', ja: '家賃' },
@@ -54,6 +56,7 @@ export function MonthlyCyclePage({
   onPerformAction,
   onSetExtraPayment,
   onSetFoodLifestyle,
+  onSetStagePolicy,
   onComplete,
 }: {
   language: Language
@@ -67,6 +70,7 @@ export function MonthlyCyclePage({
   onPerformAction: (actionId: string) => void
   onSetExtraPayment: (amountRmb: number) => void
   onSetFoodLifestyle: (foodLifestyle: FoodLifestyle) => void
+  onSetStagePolicy: (policy: StagePolicyId) => void
   onComplete: () => void
 }) {
   const actions = getAvailableMonthlyActions({
@@ -79,6 +83,7 @@ export function MonthlyCyclePage({
   const unavailableCoreActions = actions.filter((action) => action.source === 'core' && !isMonthlyActionAvailable(plan, action.id))
   const availabilityById = new Map(plan.actionAvailability.map((entry) => [entry.actionId, entry]))
   const visibleSideHustleRouteIds = sideHustleRouteIds.filter((routeId) => sideHustles.routes[routeId].state !== 'hidden')
+  const hasUnlockedSideHustle = sideHustleRouteIds.some((routeId) => sideHustles.routes[routeId].state === 'unlocked')
   const maximumExtraPaymentRmb = getMaximumExtraPaymentRmb(stats, plan)
   const rateJpyPerRmb = plan.exchangeRate > 0 ? 1 / plan.exchangeRate : 0
   const livingExpenses = resolveLivingExpenses(plan.foodLifestyle, plan.smokingLevel, plan.extraSmokingJpy)
@@ -105,6 +110,34 @@ export function MonthlyCyclePage({
       <div><dt>{language === 'zh' ? '身体' : '身体'}</dt><dd>{statusLabel('health', stats.health, language)}</dd></div>
       <div><dt>{language === 'zh' ? '精神' : '精神'}</dt><dd>{statusLabel('mental', stats.mental, language)}</dd></div>
     </dl>
+
+    <section className={styles.stagePolicyPanel}>
+      <div className={styles.monthPanelHeading}>
+        <div>
+          <span>方針</span>
+          <h2>{language === 'zh' ? '接下来一段时间' : 'これからしばらく'}</h2>
+        </div>
+        <small>{language === 'zh' ? '平淡月份会按这一方针继续生活' : '何もない月は、この方針で暮らしを続ける'}</small>
+      </div>
+      <div className={styles.stagePolicyOptions}>
+        {stagePolicyIds.map((policyId) => {
+          const content = stagePolicyContent[policyId]
+          const disabled = policyId === 'side_hustle' && !hasUnlockedSideHustle
+          return <button
+            type="button"
+            key={policyId}
+            aria-pressed={plan.stagePolicy === policyId}
+            disabled={disabled}
+            onClick={() => onSetStagePolicy(policyId)}
+          >
+            <strong>{content.label[language]}</strong>
+            <small>{disabled
+              ? (language === 'zh' ? '还没有出现可以经营的另一条路。' : 'まだ育てられる別の道がない。')
+              : content.description[language]}</small>
+          </button>
+        })}
+      </div>
+    </section>
 
     <div className={styles.monthOperatingGrid}>
       <section className={styles.monthPanel}>
@@ -242,7 +275,7 @@ export function MonthlyCyclePage({
       <small>{language === 'zh'
         ? `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}% · AP最多透支至 ${MONTHLY_AP_OVERDRAFT_LIMIT} · 本月汇率已固定`
         : `月利率 ${(stats.debtInterestRate * 100).toFixed(1)}%・AP前借りは ${MONTHLY_AP_OVERDRAFT_LIMIT} まで・今月の為替は確定済み`}</small>
-      <button className={styles.primaryButton} type="button" onClick={onComplete}>{language === 'zh' ? '确认并进行月结' : '確認して月次精算へ'}</button>
+      <button className={styles.primaryButton} type="button" onClick={onComplete}>{language === 'zh' ? '确认方针并进行月结' : '方針を決め、月次精算へ'}</button>
     </div>
   </section>
 }

@@ -32,7 +32,11 @@ import type {
   SideHustleRouteId,
   SideHustleState,
   SmokingLevel,
+  StagePolicyId,
   StatKey,
+  TimePassageCauseId,
+  TimePassageRecord,
+  TimePassageState,
   VolumeProgress,
 } from '../types/game'
 
@@ -70,6 +74,20 @@ function foodLifestyleOf(value: unknown): FoodLifestyle {
 
 function smokingLevelOf(value: unknown): SmokingLevel {
   return value === 'none' || value === 'light' || value === 'heavy' ? value : 'regular'
+}
+
+function stagePolicyOf(value: unknown): StagePolicyId {
+  return value === 'recovery' || value === 'career' || value === 'study'
+    || value === 'debt' || value === 'side_hustle'
+    ? value
+    : 'balanced'
+}
+
+function timePassageCauseOf(value: unknown): TimePassageCauseId | null {
+  return value === 'quiet' || value === 'illness' || value === 'project_crunch'
+    || value === 'game_absorption' || value === 'side_hustle_sprint'
+    ? value
+    : null
 }
 
 function migrateEmployment(value: unknown, legacySalaryJpy: number): EmploymentState {
@@ -136,6 +154,7 @@ function screenOf(value: unknown): GameScreen {
     || value === 'preview'
     || value === 'monthly-cycle'
     || value === 'month-settlement'
+    || value === 'time-passage'
     || value === 'annual-report'
     || value === 'stage-ending'
     || value === 'debt-free-month'
@@ -384,6 +403,7 @@ function migrateMonthlyPlan(
         },
     foodLifestyle: foodLifestyleOf(value.foodLifestyle ?? livingProfile.foodLifestyle),
     smokingLevel: smokingLevelOf(value.smokingLevel ?? livingProfile.smokingLevel),
+    stagePolicy: stagePolicyOf(value.stagePolicy),
     extraSmokingJpy: Math.max(0, finiteNumber(value.extraSmokingJpy, 0)),
     actionAvailability,
     selectedActions,
@@ -436,6 +456,7 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
           raiseJpy: 0,
         },
     sideHustleIncomeJpy: Math.max(0, finiteNumber(value.sideHustleIncomeJpy, 0)),
+    stagePolicy: stagePolicyOf(value.stagePolicy),
     foodLifestyle: foodLifestyleOf(value.foodLifestyle),
     smokingLevel: smokingLevelOf(value.smokingLevel),
     foodCostJpy: Math.max(0, finiteNumber(
@@ -459,6 +480,59 @@ function migrateSettlement(value: unknown): MonthSettlement | null {
   }
 }
 
+function migrateTimePassage(value: unknown, fallbackStats: GameStats): TimePassageState | null {
+  if (!isRecord(value)) return null
+  const causeId = timePassageCauseOf(value.causeId)
+  if (!causeId) return null
+  const months = Array.isArray(value.months) ? value.months.flatMap((entry) => {
+    if (!isRecord(entry)) return []
+    const actions = Array.isArray(entry.actions) ? entry.actions.flatMap((action) => (
+      isRecord(action) && typeof action.zh === 'string' && typeof action.ja === 'string'
+        ? [{ zh: action.zh, ja: action.ja }]
+        : []
+    )) : []
+    return [{
+      elapsedMonth: Math.max(1, finiteNumber(entry.elapsedMonth, 1)),
+      year: finiteNumber(entry.year, 2024),
+      month: Math.min(12, Math.max(1, finiteNumber(entry.month, 1))),
+      debtRmbAfter: Math.max(0, finiteNumber(entry.debtRmbAfter, fallbackStats.debtRmb)),
+      cashJpyAfter: Math.max(0, finiteNumber(entry.cashJpyAfter, fallbackStats.cashJpy)),
+      healthAfter: finiteNumber(entry.healthAfter, fallbackStats.health),
+      mentalAfter: finiteNumber(entry.mentalAfter, fallbackStats.mental),
+      stressAfter: finiteNumber(entry.stressAfter, fallbackStats.stress),
+      actions,
+    }]
+  }) : []
+  const fromElapsedMonth = Math.max(1, finiteNumber(value.fromElapsedMonth, 1))
+  const toElapsedMonth = Math.max(fromElapsedMonth, finiteNumber(value.toElapsedMonth, fromElapsedMonth + months.length))
+  return {
+    causeId,
+    policy: stagePolicyOf(value.policy),
+    fromElapsedMonth,
+    toElapsedMonth,
+    skippedMonths: Math.max(1, Math.floor(finiteNumber(value.skippedMonths, months.length || 1))),
+    statsBefore: migrateStats(value.statsBefore ?? fallbackStats),
+    statsAfter: migrateStats(value.statsAfter ?? fallbackStats),
+    months,
+    resumeEventId: typeof value.resumeEventId === 'string' ? value.resumeEventId : null,
+  }
+}
+
+function migrateTimePassageHistory(value: unknown): TimePassageRecord[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) return []
+    const causeId = timePassageCauseOf(entry.causeId)
+    if (!causeId) return []
+    const fromElapsedMonth = Math.max(1, finiteNumber(entry.fromElapsedMonth, 1))
+    return [{
+      causeId,
+      fromElapsedMonth,
+      toElapsedMonth: Math.max(fromElapsedMonth, finiteNumber(entry.toElapsedMonth, fromElapsedMonth)),
+    }]
+  })
+}
+
 export function migrateGameSave(persistedState: unknown, persistedVersion: number): GameSaveState {
   void persistedVersion
   if (!isRecord(persistedState)) return createInitialGameSaveState('zh')
@@ -472,9 +546,15 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
   const activeMiniGame = migrateMiniGameSession(persistedState.activeMiniGame)
   const migratedMonthlyEventSlot = migrateMonthlyEventSlot(persistedState.monthlyEventSlot)
   const recoverLegacyMiniGame = storedScreen === 'monthly-minigame' && activeMiniGame === null
+  const timePassage = migrateTimePassage(persistedState.timePassage, stats)
+  const recoverMissingTimePassage = storedScreen === 'time-passage' && timePassage === null
   return {
     language,
-    screen: recoverLegacyMiniGame ? 'monthly-cycle' : storedScreen,
+    screen: recoverLegacyMiniGame
+      ? 'monthly-cycle'
+      : recoverMissingTimePassage
+        ? 'month-settlement'
+        : storedScreen,
     month: finiteNumber(persistedState.month, fallback.month),
     year: finiteNumber(persistedState.year, fallback.year),
     stats,
@@ -497,6 +577,8 @@ export function migrateGameSave(persistedState: unknown, persistedVersion: numbe
     monthlySettlements: Array.isArray(persistedState.monthlySettlements)
       ? persistedState.monthlySettlements.map(migrateSettlement).filter((settlement): settlement is MonthSettlement => settlement !== null)
       : [],
+    timePassage,
+    timePassageHistory: migrateTimePassageHistory(persistedState.timePassageHistory),
     debtFreeChoiceId: typeof persistedState.debtFreeChoiceId === 'string'
       ? persistedState.debtFreeChoiceId
       : null,

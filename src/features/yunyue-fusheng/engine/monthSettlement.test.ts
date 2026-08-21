@@ -27,6 +27,7 @@ function plan(overrides: Partial<MonthlyPlan> = {}): MonthlyPlan {
     },
     foodLifestyle: 'frugal',
     smokingLevel: 'regular',
+    stagePolicy: 'balanced',
     extraSmokingJpy: 0,
     actionAvailability: [],
     selectedActions: [],

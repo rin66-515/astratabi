@@ -26,6 +26,7 @@ function settlement(overrides: Partial<MonthSettlement> = {}): MonthSettlement {
     salaryJpy: 0,
     income: { baseSalaryJpy: 0, roleAllowanceJpy: 0, mentorAllowanceJpy: 0, overtimeIncomeJpy: 0, totalIncomeJpy: 0, raiseJpy: 0 },
     sideHustleIncomeJpy: 0,
+    stagePolicy: 'balanced',
     foodLifestyle: 'frugal',
     smokingLevel: 'regular',
     foodCostJpy: 42_000,
