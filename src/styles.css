@@ -302,6 +302,10 @@ h1, h2, h3, p { margin-top: 0; }
 .room-card p { color: #67675f; font-size: 12px; line-height: 1.8; }
 .room-card i { position: absolute; right: 28px; bottom: 24px; color: var(--jade-bright); font-size: 11px; font-style: normal; }
 .shop-about { max-width: 1180px; margin: 45px auto 0; color: #777568; font-size: 13px; text-align: right; }
+.shop-inscription { display: grid; min-height: 520px; place-content: center; justify-items: end; padding: 120px var(--page-gutter); color: #55584d; background: var(--paper); }
+.shop-inscription blockquote { margin: 0; font: 500 clamp(18px, 2vw, 25px) / 2.25 'Shippori Mincho', serif; letter-spacing: .14em; text-align: center; }
+.shop-inscription blockquote p { margin: 0; }
+.shop-inscription > span { display: grid; width: 34px; height: 34px; margin-top: 26px; transform: rotate(-4deg); place-items: center; border: 1px solid rgba(122, 43, 35, .64); color: #823e35; font: 500 11px 'Shippori Mincho', serif; }
 .content-signature { display: flex; align-items: center; justify-content: flex-end; gap: 9px; max-width: 1180px; margin: 28px auto 0; color: #7b7464; font-size: 11px; }
 .content-signature span { display: grid; width: 30px; height: 30px; transform: rotate(-3deg); place-items: center; border: 1px solid rgba(122, 43, 35, .64); color: #823e35; font: 500 10px 'Shippori Mincho', serif; }
 
@@ -618,6 +622,8 @@ footer small { margin-left: auto; font: 10px 'DM Mono', monospace; }
   .shop-moon { top: -180px; right: -240px; }
   .wood-sign { padding: 55px 29px 38px; }
   .shop-map { padding-top: 85px; padding-bottom: 85px; }
+  .shop-inscription { min-height: 430px; padding-top: 90px; padding-bottom: 90px; }
+  .shop-inscription blockquote { font-size: 17px; letter-spacing: .08em; }
   .room-grid, .support-panel, .story-grid, .timeline, .japanese-grid, .resources-grid, .fulfillment-flow, .delivery-preview dl, .admin-summary, .admin-management, .admin-form-grid { grid-template-columns: 1fr; }
   .room-card { min-height: 220px; }
   .word-card, .word-card:first-child { min-height: 0; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }

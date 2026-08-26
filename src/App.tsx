@@ -278,6 +278,15 @@ function ShopHome() {
       </div>
       <p className="shop-about">来人间凑数的日子。</p>
     </section>
+    <section className="shop-inscription" aria-label="墙上题字">
+      <blockquote>
+        <p>天然脩自然，忽而气璨然。</p>
+        <p>云开非有意，月照本无言。</p>
+        <p>未问身何处，何须证此缘。</p>
+        <p>一朝风过耳，万籁各归玄。</p>
+      </blockquote>
+      <span aria-label="八千">八千</span>
+    </section>
   </>
 }
 
